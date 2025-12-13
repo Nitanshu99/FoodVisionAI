@@ -1,0 +1,8 @@
+scikit-learn
+pandas
+openpyxl
+pyarrow
+tensorflow
+keras
+streamlit
+watchdog
