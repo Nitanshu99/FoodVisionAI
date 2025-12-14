@@ -1,13 +1,7 @@
 """
 Configuration module for FoodVisionAI.
 
-This module centralizes all hyperparameters, file paths, and constant definitions
-derived from the Architectural Specifications.
-
-Specifications:
-    - Input Resolution: 512x512
-    - Batch Size: 64
-    - Optimizer settings: AdamW, WD=1e-4, LR=1e-3
+This module centralizes all hyperparameters, file paths, and constant definitions.
 """
 
 import os
@@ -28,52 +22,67 @@ TRAIN_DIR = PROCESSED_DIR / "train"
 VAL_DIR = PROCESSED_DIR / "val"
 PARQUET_DB_DIR = PROCESSED_DIR / "parquet_db"
 
+# Logs directory for JSON inference data
+LOGS_DIR = DATA_DIR / "inference_logs"
+os.makedirs(LOGS_DIR, exist_ok=True)
+
 # Model artifacts
 MODELS_DIR = BASE_DIR / "models"
 CHECKPOINT_DIR = MODELS_DIR / "checkpoints"
-FINAL_MODEL_PATH = CHECKPOINT_DIR / "model_best.keras"
+
+# --- DUAL MODEL STRATEGY ---
+# 1. Global Model (Context-Aware): Trained on Full Images
+MODEL_GLOBAL_PATH = CHECKPOINT_DIR / "model_best.keras"
+
+# 2. Local Model (Crop-Specialist): Trained on Tight Crops (YOLO Processed)
+# If this training isn't finished yet, the app will fallback to the Global one automatically.
+MODEL_LOCAL_PATH = CHECKPOINT_DIR / "model_yolo_best.keras"
+
+# For backward compatibility with single-model scripts
+FINAL_MODEL_PATH = MODEL_GLOBAL_PATH 
+
+# YOLO Segmentation Model Path (Offline)
+YOLO_MODEL_PATH = MODELS_DIR / "yolov8m-seg.pt"
 
 # Ensure output directories exist
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
 # ==============================================================================
-# HYPERPARAMETERS (Section 2: Architectural Specifications)
+# HYPERPARAMETERS
 # ==============================================================================
 
 # Input Resolution: 512 x 512 pixels
-# Justification: Required to detect fine-grained textures like oil separation.
 IMG_HEIGHT = 512
 IMG_WIDTH = 512
 IMG_SIZE = (IMG_HEIGHT, IMG_WIDTH)
 INPUT_SHAPE = (IMG_HEIGHT, IMG_WIDTH, 3)
 
-# Batch Size: 64
-# Justification: Optimal balance of speed and Batch Norm stability on A6000 (48GB VRAM).
+# Batch Size
 BATCH_SIZE = 56
 
 # Optimizer Settings
-# Optimizer: AdamW
-# Learning Rate: 1e-3 with Cosine Decay Schedule
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
-
-# Training Settings
-# Precision: FP32 (Standard 32-bit Floating Point)
-USE_MIXED_PRECISION = False  # Set to True only if FP16 is explicitly requested
-
-# Seed for reproducibility
+USE_MIXED_PRECISION = False
 SEED = 42
 
 # ==============================================================================
-# DATABASE CONFIGURATION (Section 1: Data Strategy)
+# GEOMETRIC HEURISTICS
 # ==============================================================================
-# Append this to the end of src/config.py
-#Labels Metadata stored from the Model
+
+# Standard Plate Diameter in Centimeters
+PLATE_DIAMETER_CM = 28.0 
+
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
 LABELS_PATH = PROCESSED_DIR / "class_names.npy"
-# Parquet filenames matching README Section 6 Metadata
+
+# Database Registry
 DB_FILES = {
-    "nutrition": "INDB.parquet",             # Nutritional values per 100g
-    "recipes": "recipes.parquet",            # Recipe metadata
-    "serving_size": "recipes_servingsize.parquet", # Serving unit types (Bowl vs Piece)
-    "units": "Units.parquet"                 # Unit conversions
+    "nutrition": "INDB.parquet",
+    "recipes": "recipes.parquet",
+    "serving_size": "recipes_servingsize.parquet",
+    "units": "Units.parquet",
+    "links": "recipe_links.parquet"
 }

@@ -6,3 +6,5 @@ tensorflow
 keras
 streamlit
 watchdog
+ultralytics
+opencv-python-headless

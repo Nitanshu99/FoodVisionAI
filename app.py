@@ -1,227 +1,252 @@
 """
-Streamlit Application Frontend.
+Streamlit Application Frontend (Final - Dual Model & Chat UI).
 
-Implements the "Zero-Touch UI" for FoodVisionAI, utilizing a chat-like
-structure for future LLM/RAG integration.
-
-Flow: Upload Image -> B5 Prediction -> Nutrient Engine Lookup -> Display Result.
+Features:
+- Dual Model Inference (Global vs Local).
+- Chat Interface (User Image -> AI Report -> User Text).
+- Structured JSON Logging (food_item_n format) for RAG.
 """
 
 import os
+import json
+from datetime import datetime
+import cv2
+import numpy as np
 import streamlit as st
 import pandas as pd
 import keras
+from PIL import Image
 
 # Local imports
 from src import config
 from src.vision_model import build_model
 from src.nutrient_engine import NutrientEngine
-from src.vision_utils import preprocess_image, predict_food, get_class_names
-from src.augmentation import RandomGaussianBlur  # Required for model loading
+from src.segmentation import DietaryAssessor
+from src.vision_utils import predict_food, get_class_names
+from src.augmentation import RandomGaussianBlur
 
-
-# --- 1. Initialization and Setup ---
-
+# --- Setup ---
 st.set_page_config(
-    page_title="FoodVisionAI - High-Fidelity Dietary Assessment",
+    page_title="FoodVisionAI - Smart Dietary Assessment", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-@st.cache_resource(show_spinner="Loading Vision Model (EfficientNet-B5)...")
-def load_vision_model():
-    """
-    Load the final Keras model from disk.
-    
-    Returns:
-        keras.Model: The trained FoodVision B5 model.
-    """
-    model_path = config.FINAL_MODEL_PATH
-    
-    if not os.path.exists(model_path):
-        st.error(f"Model not found at {model_path}. Please run train.py first.")
-        # Fallback for UI testing if model is missing
-        return build_model(num_classes=100)
+@st.cache_resource(show_spinner="Loading AI Models...")
+def load_resources():
+    # 1. Load GLOBAL Model (Context Aware)
+    if config.MODEL_GLOBAL_PATH.exists():
+        model_global = keras.models.load_model(config.MODEL_GLOBAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
+    else:
+        st.warning("⚠️ Global Model not found. Using dummy model.")
+        model_global = build_model(100) # Dummy
 
-    try:
-        # Load the trained model.
-        # We include custom_objects because the training pipeline used
-        # a custom augmentation layer (RandomGaussianBlur).
-        custom_objects = {"RandomGaussianBlur": RandomGaussianBlur}
-        model = keras.models.load_model(model_path, custom_objects=custom_objects, compile=False)
-        return model
-    except Exception as e:
-        st.error(f"Failed to load model: {e}")
-        # Return dummy if load fails to prevent crash
-        return build_model(num_classes=100)
+    # 2. Load LOCAL Model (Crop Specialist)
+    if config.MODEL_LOCAL_PATH.exists():
+        model_local = keras.models.load_model(config.MODEL_LOCAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
+    else:
+        # Fallback to global if local training isn't done
+        model_local = model_global 
 
+    return model_global, model_local, DietaryAssessor(), NutrientEngine(), get_class_names()
 
-@st.cache_resource(show_spinner="Starting Logic Engine (Parquet DB Lookup)...")
-def load_nutrient_engine():
-    """Initialize the Nutrient Engine for instant Parquet lookups."""
-    try:
-        return NutrientEngine()
-    except FileNotFoundError:
-        st.error("FATAL ERROR: Parquet database files not found.")
-        st.stop()
+MODEL_GLOBAL, MODEL_LOCAL, ASSESSOR, ENGINE, CLASS_NAMES = load_resources()
 
-@st.cache_resource(show_spinner="Indexing Class Labels...")
-def load_labels():
-    """Load the class names (ASC codes) from the dataset directory."""
-    return get_class_names()
-
-
-# Load resources
-MODEL = load_vision_model()
-ENGINE = load_nutrient_engine()
-CLASS_NAMES = load_labels()
-
-# Initialize chat history
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# --- Helper Functions ---
 
-# --- 2. Main Logic ---
+def draw_annotations(image_np, results):
+    """Draws boxes/masks/labels on the image."""
+    annotated = image_np.copy()
+    green_screen = np.zeros_like(annotated)
+    green_screen[:, :, 1] = 255 
+    
+    for item in results:
+        stats = item["visual_stats"]
+        if "bbox" in stats:
+            x1, y1, x2, y2 = stats["bbox"]
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            # Short label
+            label = f"{item['class_id']}"
+            cv2.putText(annotated, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+        if "mask" in stats and stats["mask"] is not None:
+            mask = stats["mask"]
+            mask_indices = mask > 0
+            annotated[mask_indices] = cv2.addWeighted(
+                annotated[mask_indices], 0.7, green_screen[mask_indices], 0.3, 0
+            )
+    return annotated
+
+def save_log(inference_payload):
+    """Saves the structured JSON log to disk."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = config.LOGS_DIR / f"log_{timestamp}.json"
+    try:
+        with open(filename, "w") as f:
+            json.dump(inference_payload, f, indent=4)
+        return str(filename)
+    except Exception as e:
+        print(f"Logging error: {e}")
+        return None
 
 def process_upload(uploaded_file):
-    """
-    Handles the full image processing and assessment pipeline.
-    
-    Args:
-        uploaded_file: The uploaded image file object.
-    """
-    
-    # 1. User Message (Image Upload)
+    # Display User Image in Chat
+    image_pil = Image.open(uploaded_file).convert("RGB")
+    image_np = np.asarray(image_pil)
+    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+
+    # Add User Message to State
+    st.session_state.messages.append({"role": "user", "type": "image", "content": image_pil})
     with st.chat_message("user"):
-        st.image(uploaded_file, caption="User Upload", width="stretch")
-    
+        st.image(image_pil, caption="Uploaded Meal", width=400)
+
+    # AI Processing
+    with st.chat_message("assistant"):
+        with st.spinner("🧠 Analyzing texture, volume & nutrition..."):
+            
+            # 1. Dual-Model Inference
+            predictions = predict_food(MODEL_GLOBAL, MODEL_LOCAL, ASSESSOR, image_bgr, CLASS_NAMES)
+            
+            # 2. Construct Data Payload
+            log_payload = {
+                "timestamp": datetime.now().isoformat(),
+                "total_summary": {
+                    "Energy (kcal)": 0.0, "Protein (g)": 0.0, "Carbohydrate (g)": 0.0, "Fat (g)": 0.0
+                }
+            }
+            
+            meal_display_data = []
+
+            for i, item in enumerate(predictions):
+                # Calculate Nutrition (Enriched with Ingredients/Units)
+                nutri = ENGINE.calculate_nutrition(item["class_id"], item["visual_stats"])
+                
+                # Add to Log Payload (food_item_1, food_item_2...)
+                key = f"food_item_{i+1}"
+                log_payload[key] = {
+                    "name": nutri["Food Name"],
+                    "code": nutri["Food Code"],
+                    "mass_g": nutri["Calculated Mass (g)"],
+                    "macros": {
+                        "calories": nutri["Energy (kcal)"],
+                        "protein": nutri["Protein (g)"],
+                        "carbs": nutri["Carbohydrate (g)"],
+                        "fat": nutri["Fat (g)"]
+                    },
+                    "metadata": {
+                        "ingredients": nutri["Ingredients"],
+                        "serving_info": nutri["Serving Metadata"],
+                        "source": nutri["Source"],
+                        "confidence": item["top_predictions"][0][1],
+                        "model_used": item["crop_type"]
+                    }
+                }
+                
+                # Add to Display List
+                meal_display_data.append(nutri)
+                
+                # Aggregate Totals
+                log_payload["total_summary"]["Energy (kcal)"] += nutri["Energy (kcal)"]
+                log_payload["total_summary"]["Protein (g)"] += nutri["Protein (g)"]
+                log_payload["total_summary"]["Carbohydrate (g)"] += nutri["Carbohydrate (g)"]
+                log_payload["total_summary"]["Fat (g)"] += nutri["Fat (g)"]
+
+            # Save Log
+            log_path = save_log(log_payload)
+            print(f"Log saved: {log_path}")
+
+            # 3. Render Response
+            annotated_img = draw_annotations(image_np, predictions)
+            st.image(annotated_img, caption="Visual Segmentation", width=400)
+            
+            # Summary Banner
+            st.markdown(f"### 📊 Total: {log_payload['total_summary']['Energy (kcal)']:.0f} kcal")
+            
+            # Render Item Details (Collapsible)
+            for i, data in enumerate(meal_display_data):
+                with st.expander(f"Item {i+1}: {data['Food Name']}", expanded=(i==0)):
+                    st.write(f"**Mass:** {data['Calculated Mass (g)']}g")
+                    
+                    if data['Source'] != "N/A":
+                        st.markdown(f"**Source:** [Recipe Link]({data['Source']})")
+                    
+                    # Ingredients Tag List
+                    ing_list = data.get('Ingredients', [])
+                    if ing_list:
+                        st.caption(f"**Ingredients:** {', '.join(ing_list[:8])}...")
+                    
+                    # Macro Columns
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Cal", f"{data['Energy (kcal)']:.0f}")
+                    c2.metric("Prot", f"{data['Protein (g)']:.1f}g")
+                    c3.metric("Carb", f"{data['Carbohydrate (g)']:.1f}g")
+                    c4.metric("Fat", f"{data['Fat (g)']:.1f}g")
+
+    # Save Assistant Response to History
     st.session_state.messages.append({
-        "role": "user",
-        "content": uploaded_file.name,
-        "image": uploaded_file
+        "role": "assistant", 
+        "type": "report", 
+        "content": log_payload,
+        "image": annotated_img
     })
 
-    # 2. System Analysis (B5 and Logic Engine)
-    with st.chat_message("assistant"):
-        
-        with st.status("Analyzing image...", expanded=True) as status:
-            
-            # A. Preprocessing
-            st.write("1/3: Pre-processing image (512x512 resolution)...")
-            image_tensor = preprocess_image(uploaded_file)
+# --- Main UI Layout ---
+st.title("FoodVisionAI 🥘")
+st.caption("Offline Monocular Dietary Assessment System")
 
-            # B. Vision Prediction (B5 Model)
-            st.write("2/3: Running EfficientNet-B5 inference...")
-            prediction_output = predict_food(
-                model=MODEL,
-                image_tensor=image_tensor,
-                class_names=CLASS_NAMES
-            )
-            
-            if "error" in prediction_output:
-                st.error(f"Prediction Error: {prediction_output['error']}")
-                status.update(label="Analysis Failed", state="error", expanded=False)
-                return
-
-            class_id = prediction_output["class_id"]
-            visual_stats = prediction_output["visual_stats"]
-            top_preds = prediction_output["top_predictions"]
-            
-            # C. Logic Engine Calculation (Parquet Lookup)
-            st.write(f"3/3: Querying Parquet DB for nutrition profile of {class_id}...")
-            nutrition_result = ENGINE.calculate_nutrition(class_id, visual_stats)
-
-            status.update(label="Analysis Complete", state="complete", expanded=False)
-
-        # 3. Display Result
-        
-        food_name = nutrition_result.get("Food Name", class_id)
-        st.subheader(f"✅ Predicted Food: **{food_name}**")
-        st.caption(f"Code: {class_id} | Confidence: {top_preds[0][1]:.2f}")
-        
-        st.markdown("---")
-        
-        # Display Core Nutrition
-        st.metric(
-            label="Total Energy", 
-            value=f"{nutrition_result.get('Energy (kcal)', 0.0):.1f} kcal", 
-            delta=f"Mass: {nutrition_result.get('Calculated Mass (g)', 0.0):.1f} g"
-        )
-
-        # Display Logic Engine Decision
-        st.info(
-            f"**Logic Engine Decision:** {nutrition_result.get('Logic Path', 'N/A')}"
-            f" based on Unit: **{nutrition_result.get('Detected Unit', 'N/A')}**"
-        )
-        
-        # Detailed Breakdown
-        st.subheader("Nutritional Breakdown")
-        
-        data_display = {
-            "Macronutrient": ["Protein", "Carbohydrate", "Fat"],
-            "Amount (g)": [
-                nutrition_result.get("Protein (g)", 0.0),
-                nutrition_result.get("Carbohydrate (g)", 0.0),
-                nutrition_result.get("Fat (g)", 0.0),
-            ]
-        }
-        st.dataframe(pd.DataFrame(data_display).set_index("Macronutrient"))
-
-    st.session_state.messages.append({"role": "assistant", "content": nutrition_result})
-
-
-# --- 3. UI Structure (Chat and Sidebar) ---
-
-st.title("FoodVisionAI 🍲")
-st.markdown("### High-Fidelity Automated Dietary Assessment")
-
-# Display previous messages (CORRECTED LOOP)
-for message in st.session_state.messages:
-    if message["role"] == "user":
-        with st.chat_message("user"):
-            # Handle potential missing image ref on reload (optional safety)
-            if "image" in message:
-                st.image(message["image"], caption=message["content"], width="stretch")
-            else:
-                st.write(message["content"])
-
-    elif message["role"] == "assistant":
-        result = message["content"]
-        with st.chat_message("assistant"):
-            # FIX: Try 'Food Name' first, fallback to 'Food Code' if missing
-            display_name = result.get('Food Name', result.get('Food Code', 'Unknown Food'))
-            st.subheader(f"✅ Predicted Food: **{display_name}**")
-            
-            st.markdown("---")
-            st.metric(
-                label="Total Energy", 
-                value=f"{result.get('Energy (kcal)', 0.0):.1f} kcal",
-                delta=f"Mass: {result.get('Calculated Mass (g)', 0.0):.1f} g"
-            )
-            
-            # Helper to safely get string values
-            logic_path = result.get('Logic Path', 'N/A')
-            unit = result.get('Detected Unit', 'N/A')
-            st.info(f"**Logic Path:** {logic_path} (Unit: {unit})")
-            
-# Chat Input
-prompt = st.chat_input("Ask a question or upload an image to begin...")
-if prompt:
-    with st.chat_message("user"):
-        st.write(prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    
-    with st.chat_message("assistant"):
-        st.write("I am currently configured for image analysis only. Please upload a food image.")
-    st.session_state.messages.append({"role": "assistant", "content": "Image analysis request."})
-
-# Image Upload Sidebar
+# Sidebar
 with st.sidebar:
-    st.header("Upload Food Image")
-    uploaded_file = st.file_uploader(
-        "Upload a photo of your meal (JPG, PNG)", 
-        type=["jpg", "jpeg", "png"]
-    )
+    st.header("Actions")
+    uploaded_file = st.file_uploader("Upload Meal Photo", type=["jpg","png","jpeg"])
+    
+    st.markdown("---")
+    if st.button("Clear Chat"):
+        st.session_state.messages = []
+        st.rerun()
+    
+    st.markdown("---")
+    st.info(f"**Status:**\n- Global Model: {'✅' if config.MODEL_GLOBAL_PATH.exists() else '❌'}\n- Local Model: {'✅' if config.MODEL_LOCAL_PATH.exists() else '❌'}")
 
-    if uploaded_file is not None:
-        process_upload(uploaded_file)
+# Process Upload
+if uploaded_file:
+    # Debounce: Only process if it's a new file (avoid loop on re-render)
+    # Check if the last message was a report generated from *this* upload? 
+    # Simplified check: if last msg is NOT report, process.
+    if not st.session_state.messages or st.session_state.messages[-1].get("type") != "report":
+         process_upload(uploaded_file)
+
+# Chat History Render
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        if msg["type"] == "text":
+            st.chat_message("user").write(msg["content"])
+        elif msg["type"] == "image":
+            st.chat_message("user").image(msg["content"], width=300)
+            
+    elif msg["role"] == "assistant":
+        with st.chat_message("assistant"):
+            if "image" in msg:
+                st.image(msg["image"], width=300)
+            
+            data = msg["content"]
+            # Render a mini summary for history view
+            if isinstance(data, dict) and "total_summary" in data:
+                st.write(f"**Total Calories:** {data['total_summary']['Energy (kcal)']:.0f} kcal")
+                for k, v in data.items():
+                    if k.startswith("food_item"):
+                        st.caption(f"• {v['name']} ({v['mass_g']}g)")
+            else:
+                st.write(data)
+
+# User Input (Future RAG)
+if prompt := st.chat_input("Ask about your meal (e.g., 'Is this healthy?')..."):
+    st.session_state.messages.append({"role": "user", "type": "text", "content": prompt})
+    st.chat_message("user").write(prompt)
+    
+    # Placeholder for LLM Response
+    response = "I have logged your question and the food context. (LLM Integration Pending)"
+    st.session_state.messages.append({"role": "assistant", "type": "text", "content": response})
+    st.chat_message("assistant").write(response)
