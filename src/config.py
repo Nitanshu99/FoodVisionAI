@@ -31,7 +31,7 @@ PARQUET_DB_DIR = PROCESSED_DIR / "parquet_db"
 # Model artifacts
 MODELS_DIR = BASE_DIR / "models"
 CHECKPOINT_DIR = MODELS_DIR / "checkpoints"
-FINAL_MODEL_PATH = MODELS_DIR / "food_vision_b5.keras"
+FINAL_MODEL_PATH = CHECKPOINT_DIR / "model_best.keras"
 
 # Ensure output directories exist
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
@@ -68,7 +68,8 @@ SEED = 42
 # DATABASE CONFIGURATION (Section 1: Data Strategy)
 # ==============================================================================
 # Append this to the end of src/config.py
-
+#Labels Metadata stored from the Model
+LABELS_PATH = PROCESSED_DIR / "class_names.npy"
 # Parquet filenames matching README Section 6 Metadata
 DB_FILES = {
     "nutrition": "INDB.parquet",             # Nutritional values per 100g
