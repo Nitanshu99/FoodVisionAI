@@ -12,15 +12,18 @@ import logging
 import cv2
 import numpy as np
 import sys
-import shutil
 from pathlib import Path
 from urllib import request  # Import for manual download
 from sklearn.model_selection import train_test_split
 from ultralytics import YOLO
+import argparse
 
 # Import mapping & BG remover
 from src.data_tools.folder_mapper import get_manual_mapping, group_sources_by_target
 from src.data_tools.background_removal import BackgroundRemover
+
+# Import the shared logic
+from src.vision_utils import process_crop
 
 # Configure Logging
 logging.basicConfig(
@@ -66,15 +69,13 @@ class UnifiedProcessor:
             img = cv2.imread(str(image_path))
             if img is None: return None
 
-            # 2. Remove Background
+            # 2. Remove Background FIRST (for training consistency)
             clean_img = self.remover.process_image(img)
 
-            # 3. Detect
+            # 3. Detect on Clean Image
             results = self.model(clean_img, verbose=False, conf=CONF_THRESHOLD)[0]
             
-            target_crop = None
-
-            # Find Largest Object
+            # Find LARGEST Object Only (Training Focus)
             if results.boxes:
                 max_area = 0
                 best_box = None
@@ -86,27 +87,24 @@ class UnifiedProcessor:
                         best_box = (x1, y1, x2, y2)
                 
                 if best_box:
-                    x1, y1, x2, y2 = best_box
-                    h, w, _ = clean_img.shape
-                    x1, y1 = max(0, x1), max(0, y1)
-                    x2, y2 = min(w, x2), min(h, y2)
-                    target_crop = clean_img[y1:y2, x1:x2]
+                    # Use shared processing logic
+                    target_crop = process_crop(clean_img, best_box)
+                    if target_crop is not None:
+                        return target_crop
 
-            # Fallback
-            if target_crop is None or target_crop.size == 0:
-                h, w, _ = clean_img.shape
-                min_dim = min(h, w)
-                sx, sy = (w - min_dim) // 2, (h - min_dim) // 2
-                target_crop = clean_img[sy:sy+min_dim, sx:sx+min_dim]
-
-            # 4. Resize
-            return cv2.resize(target_crop, IMG_SIZE, interpolation=cv2.INTER_AREA)
+            # Fallback: Center crop if no objects detected
+            h, w, _ = clean_img.shape
+            min_dim = min(h, w)
+            sx, sy = (w - min_dim) // 2, (h - min_dim) // 2
+            fallback_bbox = (sx, sy, sx + min_dim, sy + min_dim)
+            return process_crop(clean_img, fallback_bbox)
 
         except Exception as e:
             return None
 
-def execute_pipeline(raw_dir: Path, output_dir: Path):
+def execute_pipeline(raw_dir: Path, output_dir: Path, skip_existing: bool = False):
     print(f"\n--- STARTING PIPELINE ---")
+    print(f"Skip existing files: {skip_existing}")
     
     # Define Model Path inside models/ folder
     BASE = raw_dir.parents[2] # FoodVisionAI/
@@ -162,8 +160,8 @@ def execute_pipeline(raw_dir: Path, output_dir: Path):
             for p in p_list:
                 final_save_path = dest_folder / f"{p.stem}.jpg"
                 
-                # Resume Check
-                if final_save_path.exists():
+                # Resume Check (only if skip flag is enabled)
+                if skip_existing and final_save_path.exists():
                     total_skipped += 1
                     continue
 
@@ -184,8 +182,13 @@ def execute_pipeline(raw_dir: Path, output_dir: Path):
     print(f"New: {total_images_processed}")
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="YOLO Data Processor")
+    parser.add_argument("-s", "--skip", action="store_true", 
+                       help="Skip existing files (resume mode)")
+    args = parser.parse_args()
+    
     BASE = Path(__file__).resolve().parents[2]
     RAW_DIR = BASE / "data" / "raw" / "images"
     OUTPUT_DIR = BASE / "data" / "yolo_processed"
     
-    execute_pipeline(RAW_DIR, OUTPUT_DIR)
+    execute_pipeline(RAW_DIR, OUTPUT_DIR, skip_existing=args.skip)

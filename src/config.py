@@ -67,7 +67,6 @@ EPOCHS = 50  # <--- ADDED DEFAULT EPOCHS
 # Optimizer Settings
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
-USE_MIXED_PRECISION = False
 SEED = 42
 
 # ==============================================================================

@@ -15,6 +15,7 @@ import cv2
 from PIL import Image
 from keras import Model
 from src import config
+from src.data_tools.background_removal import BackgroundRemover
 
 def get_class_names() -> List[str]:
     """
@@ -35,34 +36,35 @@ def get_class_names() -> List[str]:
 
     return sorted([d for d in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, d))])
 
-def load_image_raw(image_file: Any) -> np.ndarray:
+def process_crop(image: np.ndarray, bbox: Tuple[int, int, int, int]) -> np.ndarray:
     """
-    Loads uploaded file into OpenCV BGR array.
-
+    Shared cropping logic for both training and inference.
+    Ensures consistent preprocessing between data generation and model prediction.
+    
     Args:
-        image_file (Any): The uploaded file object (e.g., from Streamlit).
-
+        image (np.ndarray): Input image array.
+        bbox (Tuple[int, int, int, int]): Bounding box (x1, y1, x2, y2).
+    
     Returns:
-        np.ndarray: The image in BGR format.
+        np.ndarray: Standardized crop resized to 512x512.
     """
-    image = Image.open(image_file).convert("RGB")
-    image_np = np.asarray(image)
-    return cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-
-def preprocess_for_model(img_array: np.ndarray) -> np.ndarray:
-    """
-    Resizes and formats image for EfficientNet-B5 (512x512).
-
-    Args:
-        img_array (np.ndarray): Input image array.
-
-    Returns:
-        np.ndarray: Preprocessed batch tensor (1, 512, 512, 3).
-    """
-    target_size = config.IMG_SIZE # 512x512
-    resized = cv2.resize(img_array, target_size, interpolation=cv2.INTER_CUBIC)
-    input_arr = resized.astype(np.float32)
-    return np.expand_dims(input_arr, axis=0)
+    x1, y1, x2, y2 = bbox
+    h, w, _ = image.shape
+    
+    # Clamp coordinates
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+    
+    # Extract crop
+    crop = image[y1:y2, x1:x2]
+    
+    # Skip invalid crops
+    if crop.shape[0] < 30 or crop.shape[1] < 30:
+        return None
+    
+    # Resize using INTER_AREA (consistent with training)
+    target_size = config.IMG_SIZE  # (512, 512)
+    return cv2.resize(crop, target_size, interpolation=cv2.INTER_AREA)
 
 def run_classification(
     model: Model,
@@ -99,24 +101,17 @@ def run_classification(
     return top_preds[0][0], top_preds
 
 def predict_food(
-    model_global: Model,
-    model_local: Model,
+    model: Model,
     assessor: Any,
     raw_image: np.ndarray,
     class_names: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Main Interface: Returns a LIST of detected food items.
-    Switches between Global and Local models based on scene complexity.
-
-    Implements Relative Area Filtering:
-    - Calculates the area of the largest detected object.
-    - Discards any object smaller than 30% (0.3) of the max area.
-    - This prevents garnishes (e.g., leaves) from triggering the Multi-Dish (Thali) logic.
+    Single-Model Interface: Returns a LIST of detected food items.
+    Uses split-flow approach for consistency between training and inference.
 
     Args:
-        model_global (Model): Context-Aware EfficientNet-B5.
-        model_local (Model): Texture-Specialist EfficientNet-B5.
+        model (Model): The unified EfficientNet-B5 model.
         assessor (Any): YOLO segmentation engine.
         raw_image (np.ndarray): The full raw image.
         class_names (List[str]): List of class labels.
@@ -124,94 +119,71 @@ def predict_food(
     Returns:
         List[Dict[str, Any]]: List of prediction results for each valid food item.
     """
-    # 1. Run Geometric Analysis (YOLO)
-    detected_objects, ppm = assessor.analyze_scene(raw_image)
+    # Initialize background remover
+    bg_remover = BackgroundRemover()
+    
+    # 1. Geometry Flow: Calculate PPM from raw image (preserves plate context)
+    _, ppm = assessor.analyze_scene(raw_image)
+    
+    # 2. Topology Flow: Remove background and segment on clean image
+    clean_image = bg_remover.process_image(raw_image)
+    detected_objects, _ = assessor.analyze_scene(clean_image)
 
-    # 2. Pre-Decision Filtering (Relative Area Threshold)
+    # 3. Pre-Decision Filtering (Relative Area Threshold)
     filtered_objects = []
     if detected_objects:
-        # Find the largest object (Main Dish)
         max_area = max(obj['area_pixels'] for obj in detected_objects)
-        threshold_area = max_area * 0.3  # 0.3 Relative Threshold
-
-        # Filter out minor objects (garnishes, noise)
+        threshold_area = max_area * 0.3
+        
         for obj in detected_objects:
             if obj['area_pixels'] >= threshold_area:
                 filtered_objects.append(obj)
-    else:
-        filtered_objects = []
 
     final_results = []
 
-    # --- LOGIC BRANCH: SINGLE VS MULTI ---
+    # 4. Process each detected object
+    for obj in filtered_objects:
+        # Extract crop using shared logic
+        crop = process_crop(clean_image, obj['bbox'])
+        
+        if crop is None:
+            continue
 
-    # CASE A: Single Dish (or None) -> Trust User Photography -> USE GLOBAL MODEL
-    # If filtering reduced count to 1 (e.g., Pizza + Leaf -> Pizza), we use Global Path.
-    if len(filtered_objects) <= 1:
+        # Single model prediction
+        class_id, top_preds = run_classification(model, crop, class_names)
 
-        # Determine Visual Stats (Area/Mask)
-        if filtered_objects:
-            obj = filtered_objects[0]
-            visual_stats = {
-                "area_cm2": obj['area_cm2'],
-                "bbox": obj['bbox'],
-                "mask": obj['mask'],
-                "ppm": ppm,
-                "occupancy_ratio": obj['area_pixels'] / (raw_image.shape[0] * raw_image.shape[1])
-            }
-        else:
-            # Fallback if YOLO misses: Assume the whole image is the food
-            visual_stats = {
-                "area_cm2": 0.0,  # Triggers default mass fallback
-                "ppm": ppm,
-                "occupancy_ratio": 1.0,
-                "error": "No specific object detected"
-            }
-
-        # Context-Aware Inference (Full Image)
-        class_id, top_preds = run_classification(model_global, raw_image, class_names)
+        # Calculate area using clean mask but raw PPM
+        visual_stats = {
+            "area_cm2": obj['area_pixels'] / (ppm ** 2),
+            "bbox": obj['bbox'],
+            "mask": obj['mask'],
+            "ppm": ppm,
+            "occupancy_ratio": obj['area_pixels'] / (clean_image.shape[0] * clean_image.shape[1])
+        }
 
         final_results.append({
             "class_id": class_id,
             "top_predictions": top_preds,
             "visual_stats": visual_stats,
-            "crop_type": "Full Image (Global Context)"
+            "crop_type": "Clean Crop (Unified Model)"
         })
 
-    # CASE B: Multi-Dish (Thali) -> Trust YOLO Crops -> USE LOCAL MODEL
-    # We crop each item so the model isn't confused by neighbor foods.
-    else:
-        for obj in filtered_objects:
-            # Extract Crop
-            x1, y1, x2, y2 = obj['bbox']
-            h, w, _ = raw_image.shape
-            
-            # Clamp coordinates (Matches yolo_processor logic)
-            x1, y1 = max(0, x1), max(0, y1)
-            x2, y2 = min(w, x2), min(h, y2)
+    # Fallback: If no objects detected, use full clean image
+    if not final_results:
+        class_id, top_preds = run_classification(model, clean_image, class_names)
+        
+        visual_stats = {
+            "area_cm2": 0.0,
+            "ppm": ppm,
+            "occupancy_ratio": 1.0,
+            "error": "No specific object detected"
+        }
 
-            crop = raw_image[y1:y2, x1:x2]
-
-            # Skip tiny garbage crops (redundant check, but safe)
-            if crop.shape[0] < 30 or crop.shape[1] < 30:
-                continue
-
-            # Crop-Specialist Inference (Tight Crop)
-            class_id, top_preds = run_classification(model_local, crop, class_names)
-
-            visual_stats = {
-                "area_cm2": obj['area_cm2'],
-                "bbox": (x1, y1, x2, y2),
-                "mask": obj['mask'],
-                "ppm": ppm,
-                "occupancy_ratio": obj['area_pixels'] / (w * h)
-            }
-
-            final_results.append({
-                "class_id": class_id,
-                "top_predictions": top_preds,
-                "visual_stats": visual_stats,
-                "crop_type": "Object Crop (Local Specialist)"
-            })
+        final_results.append({
+            "class_id": class_id,
+            "top_predictions": top_preds,
+            "visual_stats": visual_stats,
+            "crop_type": "Full Clean Image (Fallback)"
+        })
 
     return final_results

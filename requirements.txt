@@ -8,3 +8,5 @@ streamlit
 watchdog
 ultralytics
 opencv-python-headless
+rembg
+onnxruntime

@@ -34,23 +34,16 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner="Loading AI Models...")
 def load_resources():
-    # 1. Load GLOBAL Model (Context Aware)
-    if config.MODEL_GLOBAL_PATH.exists():
-        model_global = keras.models.load_model(config.MODEL_GLOBAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
-    else:
-        st.warning("⚠️ Global Model not found. Using dummy model.")
-        model_global = build_model(100) # Dummy
-
-    # 2. Load LOCAL Model (Crop Specialist)
+    # Load Unified Model (trained on clean crops)
     if config.MODEL_LOCAL_PATH.exists():
-        model_local = keras.models.load_model(config.MODEL_LOCAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
+        model = keras.models.load_model(config.MODEL_LOCAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
     else:
-        # Fallback to global if local training isn't done
-        model_local = model_global 
+        st.warning("⚠️ Unified Model not found. Using dummy model.")
+        model = build_model(100) # Dummy
 
-    return model_global, model_local, DietaryAssessor(), NutrientEngine(), get_class_names()
+    return model, DietaryAssessor(), NutrientEngine(), get_class_names()
 
-MODEL_GLOBAL, MODEL_LOCAL, ASSESSOR, ENGINE, CLASS_NAMES = load_resources()
+MODEL, ASSESSOR, ENGINE, CLASS_NAMES = load_resources()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -107,8 +100,8 @@ def process_upload(uploaded_file):
     with st.chat_message("assistant"):
         with st.spinner("🧠 Analyzing texture, volume & nutrition..."):
             
-            # 1. Dual-Model Inference
-            predictions = predict_food(MODEL_GLOBAL, MODEL_LOCAL, ASSESSOR, image_bgr, CLASS_NAMES)
+            # 1. Single-Model Inference
+            predictions = predict_food(MODEL, ASSESSOR, image_bgr, CLASS_NAMES)
             
             # 2. Construct Data Payload
             log_payload = {
@@ -208,7 +201,7 @@ with st.sidebar:
         st.rerun()
     
     st.markdown("---")
-    st.info(f"**Status:**\n- Global Model: {'✅' if config.MODEL_GLOBAL_PATH.exists() else '❌'}\n- Local Model: {'✅' if config.MODEL_LOCAL_PATH.exists() else '❌'}")
+    st.info(f"**Status:**\n- Unified Model: {'✅' if config.MODEL_LOCAL_PATH.exists() else '❌'}")
 
 # Process Upload
 if uploaded_file:

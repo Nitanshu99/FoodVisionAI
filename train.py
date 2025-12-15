@@ -17,8 +17,8 @@ from src import config, augmentation, vision_model
 
 # --- CONFIGURATION ---
 BASE_DIR = Path(__file__).resolve().parent
-TRAIN_DIR = config.TRAIN_DIR
-VAL_DIR = config.VAL_DIR
+TRAIN_DIR = config.DATA_DIR / "yolo_processed" / "train"
+VAL_DIR = config.DATA_DIR / "yolo_processed" / "val"
 CLASS_NAMES_PATH = config.LABELS_PATH
 FINAL_MODEL_PATH = config.MODEL_LOCAL_PATH  # Saving to Local Model path
 
@@ -82,14 +82,16 @@ def get_filtered_class_list(directory: Path):
     return valid_classes
 
 def main():
-    print(f"\n🚀 Starting Training on Device: {config.DEVICE}")
+    print(f"\n🚀 Starting Unified Model Training on Device: {config.DEVICE}")
     print(f"TensorFlow Version: {tf.__version__}")
+    print(f"📂 Training Data: {TRAIN_DIR}")
 
     # 1. Get List of Allowed Classes
     target_classes = get_filtered_class_list(TRAIN_DIR)
 
     if not target_classes:
         print("❌ Error: No valid classes found after filtering!")
+        print("💡 Hint: Run 'python src/data_tools/yolo_processor.py' first to generate training data.")
         return
 
     # 2. Load Data (Now unpacking the tuple)
@@ -101,9 +103,26 @@ def main():
     np.save(CLASS_NAMES_PATH, class_names)
     print(f"💾 Class names saved to {CLASS_NAMES_PATH}")
 
-    # 4. Build Model
-    print("\n🏗️ Building EfficientNet-B5 Model...")
-    model = vision_model.build_model(num_classes=len(class_names))
+    # 4. Build or Resume Model
+    initial_epoch = 0
+    
+    if os.path.exists(FINAL_MODEL_PATH):
+        print(f"\n--- Resuming from Checkpoint: {FINAL_MODEL_PATH} ---")
+        try:
+            # Load model with custom objects for augmentation layers
+            custom_objects = {"RandomGaussianBlur": augmentation.RandomGaussianBlur}
+            model = keras.models.load_model(FINAL_MODEL_PATH, custom_objects=custom_objects)
+            print(">> Model and training state loaded successfully.")
+            
+            # TODO: Extract epoch number from model if needed for initial_epoch
+            # For now, ModelCheckpoint will handle best model restoration
+            
+        except Exception as e:
+            print(f">> Warning: Could not load checkpoint ({e}). Building new model.")
+            model = vision_model.build_model(num_classes=len(class_names))
+    else:
+        print("\n🏗️ Building New EfficientNet-B5 Model...")
+        model = vision_model.build_model(num_classes=len(class_names))
     
     # 5. Callbacks
     callbacks_list = [
@@ -131,9 +150,10 @@ def main():
 
     # 6. Train
     print("\n🔥 Training Started...")
-    history = model.fit(
+    model.fit(
         train_ds,
         epochs=config.EPOCHS,
+        initial_epoch=initial_epoch,
         validation_data=val_ds,
         callbacks=callbacks_list,
         verbose=1
