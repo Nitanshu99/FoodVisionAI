@@ -76,7 +76,7 @@ PLATE_DIAMETER_CM = 28.0
 # ==============================================================================
 # DATABASE CONFIGURATION
 # ==============================================================================
-LABELS_PATH = PROCESSED_DIR / "class_names.npy"
+LABELS_PATH = BASE_DIR / "class_names.npy"
 
 # Database Registry
 DB_FILES = {

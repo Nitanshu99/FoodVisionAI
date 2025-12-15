@@ -7,12 +7,16 @@ Feature:
 """
 
 import os
+import numpy as np
 import tensorflow as tf
 import keras
 from keras import callbacks
 from src import config
 from src import augmentation
 from src import vision_model
+
+# Force the exact same class order as the Global Model
+MASTER_CLASSES = np.load(config.LABELS_PATH).tolist()
 
 # Constants
 AUTOTUNE = tf.data.AUTOTUNE # pylint: disable=E1101 # type: ignore
@@ -26,7 +30,7 @@ def load_dataset(directory: str, is_training: bool = False):
         directory,
         labels="inferred",
         label_mode="categorical",
-        class_names=None,
+        class_names=MASTER_CLASSES,
         color_mode="rgb",
         batch_size=config.BATCH_SIZE,
         image_size=config.IMG_SIZE,
