@@ -6,6 +6,7 @@ This module centralizes all hyperparameters, file paths, and constant definition
 
 import os
 from pathlib import Path
+import tensorflow as tf  # <--- ADDED THIS IMPORT
 
 # ==============================================================================
 # PATH CONFIGURATION
@@ -18,8 +19,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 PROCESSED_DIR = DATA_DIR / "processed"
 
-TRAIN_DIR = PROCESSED_DIR / "train"
-VAL_DIR = PROCESSED_DIR / "val"
+# Note: Unified Training script expects these to point to your new YOLO data
+# If you are training the Local Model, ensure these point to 'yolo_processed'
+TRAIN_DIR = DATA_DIR / "yolo_processed" / "train"  # <--- UPDATED for YOLO Training
+VAL_DIR = DATA_DIR / "yolo_processed" / "val"      # <--- UPDATED for YOLO Training
 PARQUET_DB_DIR = PROCESSED_DIR / "parquet_db"
 
 # Logs directory for JSON inference data
@@ -59,6 +62,7 @@ INPUT_SHAPE = (IMG_HEIGHT, IMG_WIDTH, 3)
 
 # Batch Size
 BATCH_SIZE = 56
+EPOCHS = 50  # <--- ADDED DEFAULT EPOCHS
 
 # Optimizer Settings
 LEARNING_RATE = 1e-3
@@ -86,3 +90,18 @@ DB_FILES = {
     "units": "Units.parquet",
     "links": "recipe_links.parquet"
 }
+
+# ==============================================================================
+# DEVICE CONFIGURATION (ADDED)
+# ==============================================================================
+def get_device():
+    """Returns the primary available device (GPU or CPU)."""
+    try:
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
+            return "GPU"
+    except:
+        pass
+    return "CPU"
+
+DEVICE = get_device()

@@ -1,67 +1,83 @@
 """
-YOLO Processor Module.
+Unified Data Processor (Clean Directory Mode).
 
-This script creates the 'Clean' dataset for Phase 2 training.
-It iterates through raw data, uses YOLOv8 to detect the main food item,
-crops it (removing background), and organizes it into the standard
-INDB Code structure (Train/Val split).
+Pipeline:
+1. Load Raw Image.
+2. Remove Background (U2-Net -> models/).
+3. Detect Main Object (YOLO -> models/).
+4. Crop & Resize -> Save to 'data/yolo_processed'.
 """
 
-import os
-import shutil
 import logging
 import cv2
 import numpy as np
+import sys
+import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple
+from urllib import request  # Import for manual download
 from sklearn.model_selection import train_test_split
 from ultralytics import YOLO
 
-# Import mapping logic from your existing tool
+# Import mapping & BG remover
 from src.data_tools.folder_mapper import get_manual_mapping, group_sources_by_target
+from src.data_tools.background_removal import BackgroundRemover
 
 # Configure Logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
-# Constants
 IMG_SIZE = (512, 512)
 CONF_THRESHOLD = 0.25
 
-class ImageCleaner:
-    def __init__(self, model_path: Path):
-        """Initialize YOLO model for cleaning."""
-        if not model_path.exists():
-            # If model is missing, try to use the default name to trigger auto-download
-            logger.warning(f"Model not found at {model_path}. letting Ultralytics download 'yolov8m-seg.pt'...")
-            self.model = YOLO("yolov8m-seg.pt") 
+class UnifiedProcessor:
+    def __init__(self, target_model_path: Path):
+        print(">> Initializing Background Remover...")
+        self.remover = BackgroundRemover()
+        
+        # --- LOGIC: DOWNLOAD DIRECTLY TO 'models/' ---
+        if not target_model_path.exists():
+            print(f">> Model not found at {target_model_path}")
+            print(f">> Downloading YOLOv8m-seg directly to {target_model_path}...")
+            
+            # 1. Define Official URL (Matches the version Ultralytics uses)
+            url = "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8m-seg.pt"
+            
+            # 2. Download manually to the specific folder
+            try:
+                request.urlretrieve(url, str(target_model_path))
+                print(">> Download complete.")
+            except Exception as e:
+                print(f"ERROR: Could not download model. {e}")
+                raise e
+            
+            # 3. Load from the new local path
+            self.model = YOLO(str(target_model_path))
         else:
-            self.model = YOLO(model_path)
-            
-    def process_image(self, image_path: Path) -> np.ndarray:
-        """
-        Loads image, detects largest object, crops, and resizes.
-        Returns None if image is unreadable.
-        """
+            print(f">> Loading YOLO from {target_model_path}...")
+            self.model = YOLO(str(target_model_path))
+
+    def process_and_clean(self, image_path: Path) -> np.ndarray:
         try:
-            # Load Image
+            # 1. Load
             img = cv2.imread(str(image_path))
-            if img is None:
-                return None
-            
-            # Run Inference
-            results = self.model(img, verbose=False, conf=CONF_THRESHOLD)[0]
+            if img is None: return None
+
+            # 2. Remove Background
+            clean_img = self.remover.process_image(img)
+
+            # 3. Detect
+            results = self.model(clean_img, verbose=False, conf=CONF_THRESHOLD)[0]
             
             target_crop = None
-            
-            # Logic: Find Largest Detected Object
+
+            # Find Largest Object
             if results.boxes:
                 max_area = 0
                 best_box = None
-                
                 for box in results.boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     area = (x2 - x1) * (y2 - y1)
@@ -71,88 +87,105 @@ class ImageCleaner:
                 
                 if best_box:
                     x1, y1, x2, y2 = best_box
-                    # Clamp coordinates
-                    h, w, _ = img.shape
+                    h, w, _ = clean_img.shape
                     x1, y1 = max(0, x1), max(0, y1)
                     x2, y2 = min(w, x2), min(h, y2)
-                    
-                    target_crop = img[y1:y2, x1:x2]
+                    target_crop = clean_img[y1:y2, x1:x2]
 
-            # Fallback: If no object detected (or crop failed), use Center Crop
+            # Fallback
             if target_crop is None or target_crop.size == 0:
-                h, w, _ = img.shape
+                h, w, _ = clean_img.shape
                 min_dim = min(h, w)
-                start_x = (w - min_dim) // 2
-                start_y = (h - min_dim) // 2
-                target_crop = img[start_y:start_y+min_dim, start_x:start_x+min_dim]
+                sx, sy = (w - min_dim) // 2, (h - min_dim) // 2
+                target_crop = clean_img[sy:sy+min_dim, sx:sx+min_dim]
 
-            # Resize to Standard Input (512x512)
-            resized = cv2.resize(target_crop, IMG_SIZE, interpolation=cv2.INTER_AREA)
-            return resized
+            # 4. Resize
+            return cv2.resize(target_crop, IMG_SIZE, interpolation=cv2.INTER_AREA)
 
         except Exception as e:
-            logger.warning(f"Error processing {image_path.name}: {e}")
             return None
 
-
-def execute_pipeline(raw_dir: Path, output_dir: Path, model_path: Path, split_ratio: float = 0.9):
-    """
-    Main Pipeline: Map -> Clean -> Split -> Save.
-    """
-    # 1. Setup
-    cleaner = ImageCleaner(model_path)
-    mapping = get_manual_mapping()
-    target_groups = group_sources_by_target(mapping) # {'ASC001': ['hot tea', ...]}
+def execute_pipeline(raw_dir: Path, output_dir: Path):
+    print(f"\n--- STARTING PIPELINE ---")
     
+    # Define Model Path inside models/ folder
+    BASE = raw_dir.parents[2] # FoodVisionAI/
+    MODEL_PATH = BASE / "models" / "yolov8m-seg.pt"
+    
+    if not raw_dir.exists():
+        print(f"ERROR: Raw directory does not exist!")
+        return
+
+    # Scan Disk
+    print(f"\n--- SCANNING DISK ---")
+    actual_folders = [f.name for f in raw_dir.iterdir() if f.is_dir()]
+    print(f"Found {len(actual_folders)} folders in raw directory.")
+
+    # Setup Processor
+    processor = UnifiedProcessor(MODEL_PATH)
+    
+    mapping = get_manual_mapping()
+    target_groups = group_sources_by_target(mapping)
+
     train_dir = output_dir / "train"
     val_dir = output_dir / "val"
     
-    # 2. Iterate through Target Codes (e.g., ASC123)
+    total_images_processed = 0
+    total_skipped = 0
+
+    print(f"\n--- PROCESSING TARGETS ---")
     for target_code, source_folders in target_groups.items():
-        
-        # Collect all raw image paths for this target
-        all_image_paths = []
-        for src_name in source_folders:
-            src_path = raw_dir / src_name
-            if src_path.exists():
-                images = [f for f in src_path.iterdir() if f.suffix.lower() in ['.jpg', '.jpeg', '.png']]
-                all_image_paths.extend(images)
-        
-        if not all_image_paths:
-            continue
+        paths = []
+        for src in source_folders:
+            src_p = raw_dir / src
+            if not src_p.exists():
+                for actual in actual_folders:
+                    if actual.lower() == src.lower():
+                        src_p = raw_dir / actual
+                        break
+            
+            if src_p.exists():
+                all_candidates = [f for f in src_p.iterdir() if f.is_file() and not f.name.startswith('.')]
+                paths.extend(all_candidates)
 
-        # 3. Split Data
-        if len(all_image_paths) < 2:
-            train_paths, val_paths = all_image_paths, []
-        else:
-            train_paths, val_paths = train_test_split(
-                all_image_paths, train_size=split_ratio, random_state=42, shuffle=True
-            )
+        if not paths: continue
 
-        # 4. Process & Save
-        def _process_batch(paths, dest_root):
-            dest_folder = dest_root / target_code
+        # Split
+        train_p, val_p = (paths, []) if len(paths) < 2 else train_test_split(paths, train_size=0.9, random_state=42)
+
+        processed_count_target = 0
+        
+        for p_list, dest in [(train_p, train_dir), (val_p, val_dir)]:
+            dest_folder = dest / target_code
             dest_folder.mkdir(parents=True, exist_ok=True)
             
-            for p in paths:
-                processed_img = cleaner.process_image(p)
-                if processed_img is not None:
-                    save_name = f"{p.stem}.jpg" # Force jpg
-                    cv2.imwrite(str(dest_folder / save_name), processed_img)
+            for p in p_list:
+                final_save_path = dest_folder / f"{p.stem}.jpg"
+                
+                # Resume Check
+                if final_save_path.exists():
+                    total_skipped += 1
+                    continue
 
-        logger.info(f"Processing {target_code}: {len(train_paths)} Train, {len(val_paths)} Val")
-        _process_batch(train_paths, train_dir)
-        _process_batch(val_paths, val_dir)
+                final_img = processor.process_and_clean(p)
+                
+                if final_img is not None:
+                    cv2.imwrite(str(final_save_path), final_img)
+                    processed_count_target += 1
+                    total_images_processed += 1
+                
+                if processed_count_target % 10 == 0:
+                    print(f"   Processing {target_code}... ({processed_count_target} new, {total_skipped} skipped)", end='\r')
+        
+        print(f"   [DONE] {target_code}: {processed_count_target} new images saved.")
 
-    logger.info(f"YOLO Processing Complete. Data saved to {output_dir}")
-
+    print(f"\n--- SUCCESS ---")
+    print(f"Skipped: {total_skipped}")
+    print(f"New: {total_images_processed}")
 
 if __name__ == "__main__":
-    # Define Paths based on project structure
-    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    BASE = Path(__file__).resolve().parents[2]
+    RAW_DIR = BASE / "data" / "raw" / "images"
+    OUTPUT_DIR = BASE / "data" / "yolo_processed"
     
-    RAW_DIR = BASE_DIR / "data" / "raw" / "images"
-    OUTPUT_DIR = BASE_DIR / "data" / "yolo_processed" # <--- New Clean Dataset
-    MODEL_PATH = BASE_DIR / "models" / "yolov8m-seg.pt"
-
-    execute_pipeline(RAW_DIR, OUTPUT_DIR, MODEL_PATH)
+    execute_pipeline(RAW_DIR, OUTPUT_DIR)
