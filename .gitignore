@@ -10,3 +10,11 @@ __pycache__/
 env/
 venv/
 ENV/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+*.cover
+*.log
