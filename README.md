@@ -6,7 +6,27 @@
 
 ---
 
-## 🚀 Key Features
+## � Table of Contents
+
+- [🚀 Key Features](#-key-features)
+- [🏗️ System Architecture](#️-system-architecture)
+- [🔬 How It Works](#-how-it-works)
+  - [Nutrition Calculation](#nutrition-calculation)
+  - [Model Training](#model-training)
+- [📖 **USAGE GUIDE** ⭐](#-usage-guide-)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running the App](#running-the-app)
+  - [Training Your Own Model](#training-your-own-model)
+- [⚙️ Technical Specifications](#️-technical-specifications)
+- [📊 Performance Metrics](#-performance-metrics)
+- [🧪 Testing](#-testing)
+- [🤝 Contributing](#-contributing)
+- [📄 License](#-license)
+
+---
+
+## �🚀 Key Features
 
 * **🧠 Unified Inference Engine:** Uses a single EfficientNet-B5 model trained on clean, background-removed crops for optimal texture recognition
 * **🎯 Adaptive Segmentation:** YOLOv8-seg detects up to 8 food items per image with intelligent filtering
@@ -317,11 +337,13 @@ Raw Excel/CSV files → High-speed **Parquet** files for sub-millisecond queryin
 
 ---
 
-## 👤 Complete User Guide
+## � **USAGE GUIDE** ⭐
+
+> **START HERE** if you want to use FoodVisionAI from scratch!
 
 ### Prerequisites
 
-* **Python:** 3.10 or higher
+* **Python:** 3.12
 * **Git:** For cloning the repository
 * **Hardware:**
   * Minimum: 8GB RAM, CPU
@@ -344,7 +366,7 @@ cd FoodVisionAI
 
 ```bash
 # Create virtual environment
-python -m venv .venv
+python3.12 -m venv .venv
 
 # Activate virtual environment
 # On macOS/Linux:
