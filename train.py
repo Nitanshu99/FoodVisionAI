@@ -48,12 +48,36 @@ AUTOTUNE = tf.data.AUTOTUNE
 IMG_SIZE = config.IMG_SIZE
 
 def load_dataset(directory: Path, allowed_classes: list, is_training: bool = False):
-    """Loads dataset and returns (dataset, class_names)."""
+    """Loads dataset with class balancing and returns (dataset, class_names)."""
     if not directory.exists():
         raise FileNotFoundError(f"❌ Dataset not found at {directory}.")
-        
+
     print(f"Loading data from: {directory}...")
-    
+
+    # Count images per class
+    class_counts = {}
+    for cls in allowed_classes:
+        cls_path = directory / cls
+        if cls_path.exists():
+            class_counts[cls] = len(list(cls_path.glob("*")))
+
+    # Calculate samples per class based on original count
+    samples_per_class = {}
+    for cls, count in class_counts.items():
+        if count >= 5000:
+            samples_per_class[cls] = 20000  # Cap at 20k
+        elif count >= 500:
+            samples_per_class[cls] = 20000  # Cap at 20k
+        elif count >= 100:
+            samples_per_class[cls] = 10000  # Cap at 10k
+        else:
+            samples_per_class[cls] = 2500   # Cap at 2.5k
+
+    print(f"\n📊 Class Balancing Strategy:")
+    for cls, target in sorted(samples_per_class.items()):
+        orig = class_counts[cls]
+        print(f"   {cls}: {orig} → {target} samples (×{target/orig:.1f})")
+
     # Load Image Dataset with explicit class filtering
     ds = keras.utils.image_dataset_from_directory(
         directory,
@@ -61,26 +85,46 @@ def load_dataset(directory: Path, allowed_classes: list, is_training: bool = Fal
         label_mode="categorical",
         class_names=allowed_classes,
         color_mode="rgb",
-        batch_size=BATCH_SIZE,
+        batch_size=1,  # Small batch for resampling
         image_size=IMG_SIZE,
-        shuffle=True,
+        shuffle=False,
         seed=42
     )
-    
-    # --- FIX: Capture class_names before transformation ---
-    class_names = ds.class_names
-    
-    # Apply Augmentation (Only for Training)
+
+    class_names = list(ds.class_names) if hasattr(ds, 'class_names') else allowed_classes
+    ds = ds.unbatch()  # type: ignore  # Unbatch for resampling
+
+    # Apply class balancing through resampling
     if is_training:
+        # Create class-wise datasets
+        class_datasets = []
+        for class_idx, cls in enumerate(class_names):
+            # Filter for this class
+            class_ds = ds.filter(lambda x, y: tf.argmax(y) == class_idx)
+
+            # Repeat and take target samples
+            target_samples = samples_per_class[cls]
+            class_ds = class_ds.repeat().take(target_samples)
+
+            class_datasets.append(class_ds)
+
+        # Interleave all classes
+        ds = tf.data.Dataset.sample_from_datasets(
+            class_datasets,
+            weights=[1.0] * len(class_datasets),
+            seed=42
+        )
+
+        # Apply augmentation
         aug_pipeline = get_augmentation_pipeline()
         ds = ds.map(
             lambda x, y: (aug_pipeline(x, training=True), y),
             num_parallel_calls=AUTOTUNE
         )
-        
-    ds = ds.prefetch(buffer_size=AUTOTUNE)
-    
-    # Return BOTH the dataset and the names
+
+    # Batch and prefetch
+    ds = ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
+
     return ds, class_names
 
 def get_filtered_class_list(directory: Path):
