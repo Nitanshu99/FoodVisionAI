@@ -405,28 +405,59 @@ This will download:
 
 **Note:** YOLOv8 model (`yolov8m-seg.pt`) will be auto-downloaded on first run.
 
-#### Step 5: Set Up Data Directories
+#### Step 5: Download Datasets
+
+**Nutrition Database:**
+```bash
+# Clone Indian Nutrient Databank (INDB)
+git clone https://github.com/lindsayjaacks/Indian-Nutrient-Databank-INDB-.git
+# Copy INDB.xlsx to data/raw/metadata/
+```
+
+**Food Images:**
+- Download from: https://khana.omkar.xyz/
+- Extract to `data/raw/images/`
+
+**Expected Directory Structure:**
+```
+FoodVisionAI/
+├── data/
+│   ├── raw/
+│   │   ├── images/           # Food images from khana.omkar.xyz
+│   │   │   ├── ASC022/
+│   │   │   ├── ASC031/
+│   │   │   └── ...
+│   │   └── metadata/         # Excel files
+│   │       ├── INDB.xlsx     # From INDB repo
+│   │       ├── recipes.xlsx
+│   │       ├── recipes_names.xlsx
+│   │       ├── recipes_servingsize.xlsx
+│   │       ├── recipe_links.xlsx
+│   │       └── Units.xlsx
+│   ├── processed/            # Auto-generated
+│   ├── yolo_processed/       # Auto-generated
+│   └── parquet_db/           # Auto-generated
+├── models/
+│   ├── checkpoints/          # Trained models
+│   ├── yolov8m-seg.pt        # Auto-downloaded
+│   ├── u2net.onnx            # Auto-downloaded
+│   └── qwen2.5-0.5b-instruct-fp16.gguf  # From download_llm.py
+└── class_names.npy           # Auto-generated
+```
+
+#### Step 6: Create Data Directories
 
 ```bash
 # Create required directories
 mkdir -p data/raw/images
 mkdir -p data/raw/metadata
 mkdir -p data/processed
-mkdir -p data/yolo_processed
+mkdir -p data/yolo_processed/train
+mkdir -p data/yolo_processed/val
 mkdir -p data/parquet_db
 mkdir -p data/inference_logs
 mkdir -p models/checkpoints
 ```
-
-#### Step 6: Prepare Database Files
-
-Place your database files in `data/raw/metadata/`:
-* `INDB.xlsx` - Nutrition database
-* `recipes.xlsx` - Ingredients
-* `recipes_names.xlsx` - Display names
-* `recipes_servingsize.xlsx` - Serving sizes
-* `recipe_links.xlsx` - Recipe URLs
-* `Units.xlsx` - Density data
 
 Then convert to Parquet format:
 
