@@ -46,6 +46,12 @@ The system operates on a **Hybrid Pipeline**:
 
 ```
 FoodVisionAI/
+├── config/                   # ✨ NEW: Modular configuration
+│   ├── settings.py           # App settings (image size, hyperparameters)
+│   ├── paths.py              # File paths (models, data, databases)
+│   ├── model_config.py       # Model configurations (EfficientNet, YOLO, LLM)
+│   └── hardware.py           # Hardware detection and auto-configuration
+│
 ├── data/
 │   ├── raw/                  # Original raw image datasets
 │   ├── processed/            # Global Model Data (Standardized & Split)
@@ -57,26 +63,61 @@ FoodVisionAI/
 │   ├── checkpoints/
 │   │   ├── model_best.keras       # Global Model (Context-Aware)
 │   │   └── model_yolo_best.keras  # Local Model (Crop-Specialist)
-│   └── yolov8m-seg.pt        # Segmentation Model
+│   ├── yolov8m-seg.pt             # Segmentation Model
+│   └── qwen2.5-0.5b-instruct-fp16.gguf  # LLM for chat features
 │
 ├── src/
-│   ├── data_tools/
-│   │   ├── folder_mapper.py       # Preprocessor A: Maps/Prunes raw data -> data/processed
-│   │   ├── yolo_processor.py      # Preprocessor B: Crops objects -> data/yolo_processed
-│   │   └── inspect_headers.py     # Database diagnostic tool
+│   ├── chat/                 # ✨ NEW: Chat/LLM modules
+│   │   ├── engine.py         # ChatEngine (LangGraph state machine)
+│   │   ├── llm.py            # QwenLLM wrapper (Qwen2.5-0.5B)
+│   │   └── rag.py            # SimpleRAG (session log search)
 │   │
-│   ├── augmentation.py       # Custom Augmentation (RandomGaussianBlur)
-│   ├── config.py             # Central Configuration
-│   ├── nutrient_engine.py    # Physics & Database Logic
-│   ├── segmentation.py       # YOLOv8 Geometry Engine
-│   ├── vision_model.py       # EfficientNet-B5 Architecture
-│   └── vision_utils.py       # "Split-Brain" Inference Logic
+│   ├── data_tools/           # Data processing modules
+│   │   ├── background_removal.py  # U2Net background removal
+│   │   ├── folder_mapper.py       # Preprocessor A: Maps/Prunes raw data
+│   │   ├── parquet_converter.py   # Excel → Parquet converter
+│   │   ├── inspect_headers.py     # Database diagnostic tool
+│   │   └── save_labels.py         # Class labels freezer
+│   │
+│   ├── models/               # ✨ NEW: Model building modules
+│   │   ├── builder.py        # Model building (build_model)
+│   │   ├── augmentation.py   # Data augmentation (RandomGaussianBlur)
+│   │   └── loader.py         # Model loading/saving utilities
+│   │
+│   ├── nutrition/            # ✨ NEW: Nutrition calculation modules
+│   │   └── engine.py         # NutrientEngine (Physics & Database Logic)
+│   │
+│   ├── segmentation/         # ✨ NEW: Segmentation modules
+│   │   └── assessor.py       # DietaryAssessor (YOLOv8 Geometry Engine)
+│   │
+│   ├── utils/                # ✨ NEW: Utility modules
+│   │   ├── image_utils.py    # Image processing utilities
+│   │   ├── file_utils.py     # File I/O utilities
+│   │   ├── data_utils.py     # Data manipulation utilities
+│   │   └── validation_utils.py  # Validation utilities
+│   │
+│   └── vision/               # ✨ NEW: Vision inference modules
+│       └── inference.py      # "Split-Brain" Inference Logic
+│
+├── tests/                    # ✨ NEW: Comprehensive test suite (124 tests)
+│   ├── test_chat.py          # Chat module tests (19 tests)
+│   ├── test_config.py        # Config module tests (25 tests)
+│   ├── test_data_tools.py    # Data tools tests (13 tests)
+│   ├── test_models.py        # Model module tests (17 tests)
+│   ├── test_nutrition.py     # Nutrition module tests (12 tests)
+│   ├── test_segmentation.py  # Segmentation tests (6 tests)
+│   ├── test_utils.py         # Utility tests (28 tests)
+│   └── test_vision.py        # Vision module tests (4 tests)
 │
 ├── app.py                    # Streamlit Frontend (Chat Interface)
 ├── train.py                  # Training script (Global Model)
 ├── after_yolo_train.py       # Training script (Local Model)
+├── ARCHITECTURE.md           # ✨ NEW: Detailed architecture documentation
+├── MIGRATION_GUIDE.md        # ✨ NEW: Migration guide for new structure
 └── requirements.txt          # Project Dependencies
 ```
+
+> **✨ What's New?** The codebase has been refactored into a modular package structure with 124 comprehensive tests. See `ARCHITECTURE.md` for details and `MIGRATION_GUIDE.md` for import changes.
 
 ---
 
@@ -326,6 +367,53 @@ These will be automatically converted to Parquet format during preprocessing.
 
 ---
 
+## 📦 Package Structure & Imports
+
+The codebase follows a modular package structure for better organization and maintainability.
+
+### Quick Import Examples
+
+```python
+# Configuration
+from config import settings, paths, model_config
+
+# Vision inference
+from src.vision import predict_food
+
+# Models
+from src.models import build_model, load_model, save_model
+
+# Nutrition
+from src.nutrition import NutrientEngine
+
+# Segmentation
+from src.segmentation import DietaryAssessor
+
+# Chat/LLM
+from src.chat import ChatEngine, get_llm
+
+# Utilities
+from src.utils import preprocess_for_model, process_crop, validate_image, get_class_names
+```
+
+For detailed documentation:
+- **Architecture:** See `ARCHITECTURE.md` for complete package structure
+- **Migration:** See `MIGRATION_GUIDE.md` for import changes from old structure
+
+### Testing
+
+Run the comprehensive test suite (124 tests):
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=src --cov=config --cov-report=html
+```
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Areas of interest:
@@ -334,6 +422,7 @@ Contributions are welcome! Areas of interest:
 * Improving volume estimation algorithms
 * Adding support for additional cuisines
 * Enhancing the conversational UI
+* Adding more comprehensive tests
 
 ---
 
