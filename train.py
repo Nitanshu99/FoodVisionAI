@@ -116,12 +116,12 @@ def load_dataset(directory: Path, allowed_classes: list, is_training: bool = Fal
             seed=42
         )
 
-        # Apply augmentation
+        # Apply augmentation (batch first for augmentation, then unbatch)
         aug_pipeline = get_augmentation_pipeline()
-        ds = ds.map(
+        ds = ds.batch(32).map(
             lambda x, y: (aug_pipeline(x, training=True), y),
             num_parallel_calls=AUTOTUNE
-        )
+        ).unbatch()  # type: ignore
 
     # Batch and prefetch
     ds = ds.batch(BATCH_SIZE).prefetch(buffer_size=AUTOTUNE)
