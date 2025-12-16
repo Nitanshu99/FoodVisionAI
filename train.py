@@ -97,6 +97,10 @@ def load_dataset(directory: Path, allowed_classes: list, is_training: bool = Fal
 
     # Apply class balancing through resampling
     if is_training:
+        # Calculate total samples for epoch
+        total_samples = sum(samples_per_class.values())
+        print(f"📊 Total samples per epoch: {total_samples:,}")
+
         # Create class-wise datasets
         class_datasets = []
         for class_idx, cls in enumerate(class_names):
@@ -109,12 +113,12 @@ def load_dataset(directory: Path, allowed_classes: list, is_training: bool = Fal
 
             class_datasets.append(class_ds)
 
-        # Interleave all classes
+        # Interleave all classes and limit to total samples
         ds = tf.data.Dataset.sample_from_datasets(
             class_datasets,
             weights=[1.0] * len(class_datasets),
             seed=42
-        )
+        ).take(total_samples)  # Limit epoch size
 
         # Apply augmentation (batch first for augmentation, then unbatch)
         aug_pipeline = get_augmentation_pipeline()
