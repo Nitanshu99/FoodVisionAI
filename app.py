@@ -43,7 +43,7 @@ def load_resources():
         model = build_model(100) # Dummy
 
     # Initialize Chat Engine
-    from src.chat_engine import ChatEngine
+    from src.chat import ChatEngine
     chat_engine = ChatEngine()
 
     return model, DietaryAssessor(), NutrientEngine(), get_class_names(), chat_engine
