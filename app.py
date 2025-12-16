@@ -20,7 +20,7 @@ from PIL import Image
 import config
 from src.models import build_model
 from src.models.loader import load_model
-from src.nutrient_engine import NutrientEngine
+from src.nutrition import NutrientEngine
 from src.segmentation import DietaryAssessor
 from src.vision import predict_food
 from src.utils.file_utils import get_class_names
