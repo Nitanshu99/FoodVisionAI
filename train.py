@@ -16,7 +16,8 @@ from pathlib import Path
 
 # Local imports
 import config
-from src.models import build_model, get_augmentation_pipeline, RandomGaussianBlur
+from src.models.builder import build_model
+from src.models.augmentation import get_augmentation_pipeline, RandomGaussianBlur
 from src.models.loader import load_model as load_keras_model
 
 # Auto-configuration for hardware optimization
