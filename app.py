@@ -27,9 +27,10 @@ from src.augmentation import RandomGaussianBlur
 
 # --- Setup ---
 st.set_page_config(
-    page_title="FoodVisionAI - Smart Dietary Assessment", 
+    page_title="FoodVisionAI - Smart Dietary Assessment",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
+    page_icon="🥘"
 )
 
 @st.cache_resource(show_spinner="Loading AI Models...")
@@ -41,12 +42,21 @@ def load_resources():
         st.warning("⚠️ Unified Model not found. Using dummy model.")
         model = build_model(100) # Dummy
 
-    return model, DietaryAssessor(), NutrientEngine(), get_class_names()
+    # Initialize Chat Engine
+    from src.chat_engine import ChatEngine
+    chat_engine = ChatEngine()
 
-MODEL, ASSESSOR, ENGINE, CLASS_NAMES = load_resources()
+    return model, DietaryAssessor(), NutrientEngine(), get_class_names(), chat_engine
 
+MODEL, ASSESSOR, ENGINE, CLASS_NAMES, CHAT_ENGINE = load_resources()
+
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "current_analysis" not in st.session_state:
+    st.session_state.current_analysis = None
+if "show_suggestions" not in st.session_state:
+    st.session_state.show_suggestions = True
 
 # --- Helper Functions ---
 
@@ -93,153 +103,362 @@ def process_upload(uploaded_file):
 
     # Add User Message to State
     st.session_state.messages.append({"role": "user", "type": "image", "content": image_pil})
-    with st.chat_message("user"):
-        st.image(image_pil, caption="Uploaded Meal", width=400)
 
     # AI Processing
-    with st.chat_message("assistant"):
-        with st.spinner("🧠 Analyzing texture, volume & nutrition..."):
-            
-            # 1. Single-Model Inference
-            predictions = predict_food(MODEL, ASSESSOR, image_bgr, CLASS_NAMES)
-            
-            # 2. Construct Data Payload
-            log_payload = {
-                "timestamp": datetime.now().isoformat(),
-                "total_summary": {
-                    "Energy (kcal)": 0.0, "Protein (g)": 0.0, "Carbohydrate (g)": 0.0, "Fat (g)": 0.0
+    with st.spinner("🧠 Analyzing meal composition, volume & nutrition..."):
+
+        # 1. Single-Model Inference
+        predictions = predict_food(MODEL, ASSESSOR, image_bgr, CLASS_NAMES)
+
+        # 2. Construct Data Payload
+        log_payload = {
+            "timestamp": datetime.now().isoformat(),
+            "total_summary": {
+                "Energy (kcal)": 0.0,
+                "Protein (g)": 0.0,
+                "Carbohydrate (g)": 0.0,
+                "Fat (g)": 0.0
+            }
+        }
+
+        meal_display_data = []
+
+        for i, item in enumerate(predictions):
+            # Calculate Nutrition (Enriched with Ingredients/Units)
+            nutri = ENGINE.calculate_nutrition(item["class_id"], item["visual_stats"])
+
+            # Add to Log Payload (food_item_1, food_item_2...)
+            key = f"food_item_{i+1}"
+            log_payload[key] = {
+                "name": nutri["Food Name"],
+                "code": nutri["Food Code"],
+                "mass_g": nutri["Calculated Mass (g)"],
+                "macros": {
+                    "calories": nutri["Energy (kcal)"],
+                    "protein": nutri["Protein (g)"],
+                    "carbs": nutri["Carbohydrate (g)"],
+                    "fat": nutri["Fat (g)"]
+                },
+                "metadata": {
+                    "ingredients": nutri["Ingredients"],
+                    "serving_info": nutri["Serving Metadata"],
+                    "source": nutri["Source"],
+                    "confidence": item["top_predictions"][0][1],
+                    "model_used": item["crop_type"]
                 }
             }
-            
-            meal_display_data = []
 
-            for i, item in enumerate(predictions):
-                # Calculate Nutrition (Enriched with Ingredients/Units)
-                nutri = ENGINE.calculate_nutrition(item["class_id"], item["visual_stats"])
-                
-                # Add to Log Payload (food_item_1, food_item_2...)
-                key = f"food_item_{i+1}"
-                log_payload[key] = {
-                    "name": nutri["Food Name"],
-                    "code": nutri["Food Code"],
-                    "mass_g": nutri["Calculated Mass (g)"],
-                    "macros": {
-                        "calories": nutri["Energy (kcal)"],
-                        "protein": nutri["Protein (g)"],
-                        "carbs": nutri["Carbohydrate (g)"],
-                        "fat": nutri["Fat (g)"]
-                    },
-                    "metadata": {
-                        "ingredients": nutri["Ingredients"],
-                        "serving_info": nutri["Serving Metadata"],
-                        "source": nutri["Source"],
-                        "confidence": item["top_predictions"][0][1],
-                        "model_used": item["crop_type"]
-                    }
-                }
-                
-                # Add to Display List
-                meal_display_data.append(nutri)
-                
-                # Aggregate Totals
-                log_payload["total_summary"]["Energy (kcal)"] += nutri["Energy (kcal)"]
-                log_payload["total_summary"]["Protein (g)"] += nutri["Protein (g)"]
-                log_payload["total_summary"]["Carbohydrate (g)"] += nutri["Carbohydrate (g)"]
-                log_payload["total_summary"]["Fat (g)"] += nutri["Fat (g)"]
+            # Add to Display List
+            meal_display_data.append(nutri)
 
-            # Save Log
-            log_path = save_log(log_payload)
-            print(f"Log saved: {log_path}")
+            # Aggregate Totals
+            log_payload["total_summary"]["Energy (kcal)"] += nutri["Energy (kcal)"]
+            log_payload["total_summary"]["Protein (g)"] += nutri["Protein (g)"]
+            log_payload["total_summary"]["Carbohydrate (g)"] += nutri["Carbohydrate (g)"]
+            log_payload["total_summary"]["Fat (g)"] += nutri["Fat (g)"]
 
-            # 3. Render Response
-            annotated_img = draw_annotations(image_np, predictions)
-            st.image(annotated_img, caption="Visual Segmentation", width=400)
-            
-            # Summary Banner
-            st.markdown(f"### 📊 Total: {log_payload['total_summary']['Energy (kcal)']:.0f} kcal")
-            
-            # Render Item Details (Collapsible)
-            for i, data in enumerate(meal_display_data):
-                with st.expander(f"Item {i+1}: {data['Food Name']}", expanded=(i==0)):
-                    st.write(f"**Mass:** {data['Calculated Mass (g)']}g")
-                    
-                    if data['Source'] != "N/A":
-                        st.markdown(f"**Source:** [Recipe Link]({data['Source']})")
-                    
-                    # Ingredients Tag List
-                    ing_list = data.get('Ingredients', [])
-                    if ing_list:
-                        st.caption(f"**Ingredients:** {', '.join(ing_list[:8])}...")
-                    
-                    # Macro Columns
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Cal", f"{data['Energy (kcal)']:.0f}")
-                    c2.metric("Prot", f"{data['Protein (g)']:.1f}g")
-                    c3.metric("Carb", f"{data['Carbohydrate (g)']:.1f}g")
-                    c4.metric("Fat", f"{data['Fat (g)']:.1f}g")
+        # Save Log
+        log_path = save_log(log_payload)
+        print(f"Log saved: {log_path}")
+
+        # Add to Chat Session & Generate Trivia
+        CHAT_ENGINE.add_meal_log(log_payload)
+        trivia = CHAT_ENGINE.generate_trivia(log_payload)
+
+    # Store current analysis
+    st.session_state.current_analysis = {
+        "log_payload": log_payload,
+        "meal_display_data": meal_display_data,
+        "annotated_img": draw_annotations(image_np, predictions),
+        "trivia": trivia,
+        "original_img": image_pil
+    }
 
     # Save Assistant Response to History
     st.session_state.messages.append({
-        "role": "assistant", 
-        "type": "report", 
+        "role": "assistant",
+        "type": "report",
         "content": log_payload,
-        "image": annotated_img
+        "image": draw_annotations(image_np, predictions)
     })
 
+    # Enable suggestions
+    st.session_state.show_suggestions = True
+
+# --- Helper: Render Macro Dashboard ---
+def render_macro_dashboard(log_payload):
+    """Render professional macro summary dashboard."""
+    total = log_payload['total_summary']
+    calories = total['Energy (kcal)']
+    protein = total['Protein (g)']
+    carbs = total['Carbohydrate (g)']
+    fat = total['Fat (g)']
+
+    # Daily recommended values (example: 2000 kcal diet)
+    daily_cal = 2000
+    daily_protein = 50
+    daily_carbs = 275
+    daily_fat = 78
+
+    st.markdown("### 📊 Nutritional Summary")
+
+    # Macro cards in columns
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            label="🔥 Calories",
+            value=f"{calories:.0f}",
+            delta=f"{(calories/daily_cal*100):.1f}% of daily"
+        )
+        st.progress(min(calories/daily_cal, 1.0))
+
+    with col2:
+        st.metric(
+            label="💪 Protein",
+            value=f"{protein:.1f}g",
+            delta=f"{(protein/daily_protein*100):.1f}% of daily"
+        )
+        st.progress(min(protein/daily_protein, 1.0))
+
+    with col3:
+        st.metric(
+            label="🌾 Carbs",
+            value=f"{carbs:.1f}g",
+            delta=f"{(carbs/daily_carbs*100):.1f}% of daily"
+        )
+        st.progress(min(carbs/daily_carbs, 1.0))
+
+    with col4:
+        st.metric(
+            label="🥑 Fat",
+            value=f"{fat:.1f}g",
+            delta=f"{(fat/daily_fat*100):.1f}% of daily"
+        )
+        st.progress(min(fat/daily_fat, 1.0))
+
+    # Macro distribution pie chart (text-based)
+    total_macros = protein + carbs + fat
+    if total_macros > 0:
+        st.markdown("**Macro Distribution:**")
+        dist_col1, dist_col2, dist_col3 = st.columns(3)
+        with dist_col1:
+            st.info(f"💪 Protein: {(protein/total_macros*100):.1f}%")
+        with dist_col2:
+            st.warning(f"🌾 Carbs: {(carbs/total_macros*100):.1f}%")
+        with dist_col3:
+            st.error(f"🥑 Fat: {(fat/total_macros*100):.1f}%")
+
+
 # --- Main UI Layout ---
-st.title("FoodVisionAI 🥘")
-st.caption("Offline Monocular Dietary Assessment System")
+st.title("🥘 FoodVisionAI")
+st.caption("AI-Powered Dietary Assessment & Nutrition Analysis")
 
 # Sidebar
 with st.sidebar:
-    st.header("Actions")
-    uploaded_file = st.file_uploader("Upload Meal Photo", type=["jpg","png","jpeg"])
-    
+    st.header("📤 Upload")
+    uploaded_file = st.file_uploader("Upload Meal Photo", type=["jpg", "png", "jpeg"])
+
     st.markdown("---")
-    if st.button("Clear Chat"):
+
+    st.header("⚙️ Actions")
+    if st.button("🗑️ Clear Session", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.current_analysis = None
+        CHAT_ENGINE.clear_session()
         st.rerun()
-    
+
     st.markdown("---")
-    st.info(f"**Status:**\n- Unified Model: {'✅' if config.MODEL_LOCAL_PATH.exists() else '❌'}")
+
+    # System Status
+    st.header("📡 System Status")
+    model_status = "✅ Ready" if config.MODEL_LOCAL_PATH.exists() else "❌ Not Found"
+    chat_status = "✅ Ready" if CHAT_ENGINE.chat_enabled else "❌ Disabled"
+
+    st.success(f"**Vision Model:** {model_status}")
+    st.success(f"**Chat Engine:** {chat_status}")
+
+    # Session Summary
+    if CHAT_ENGINE.chat_enabled:
+        session_summary = CHAT_ENGINE.get_session_summary()
+        if "No meals" not in session_summary:
+            st.markdown("---")
+            st.header("📈 Session Stats")
+            st.info(session_summary)
 
 # Process Upload
 if uploaded_file:
     # Debounce: Only process if it's a new file (avoid loop on re-render)
-    # Check if the last message was a report generated from *this* upload? 
-    # Simplified check: if last msg is NOT report, process.
     if not st.session_state.messages or st.session_state.messages[-1].get("type") != "report":
-         process_upload(uploaded_file)
+        process_upload(uploaded_file)
 
-# Chat History Render
-for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        if msg["type"] == "text":
-            st.chat_message("user").write(msg["content"])
-        elif msg["type"] == "image":
-            st.chat_message("user").image(msg["content"], width=300)
-            
-    elif msg["role"] == "assistant":
-        with st.chat_message("assistant"):
-            if "image" in msg:
-                st.image(msg["image"], width=300)
-            
-            data = msg["content"]
-            # Render a mini summary for history view
-            if isinstance(data, dict) and "total_summary" in data:
-                st.write(f"**Total Calories:** {data['total_summary']['Energy (kcal)']:.0f} kcal")
-                for k, v in data.items():
-                    if k.startswith("food_item"):
-                        st.caption(f"• {v['name']} ({v['mass_g']}g)")
-            else:
-                st.write(data)
+# Main Content Area
+if st.session_state.current_analysis:
+    analysis = st.session_state.current_analysis
 
-# User Input (Future RAG)
-if prompt := st.chat_input("Ask about your meal (e.g., 'Is this healthy?')..."):
-    st.session_state.messages.append({"role": "user", "type": "text", "content": prompt})
-    st.chat_message("user").write(prompt)
-    
-    # Placeholder for LLM Response
-    response = "I have logged your question and the food context. (LLM Integration Pending)"
-    st.session_state.messages.append({"role": "assistant", "type": "text", "content": response})
-    st.chat_message("assistant").write(response)
+    # Create tabs for different views
+    tab1, tab2, tab3 = st.tabs(["📊 Analysis", "💬 Chat Assistant", "📜 History"])
+
+    with tab1:
+        # Analysis Tab - Professional Dashboard
+        col_img, col_data = st.columns([1, 1])
+
+        with col_img:
+            st.markdown("#### 📸 Detected Food Items")
+            st.image(analysis["annotated_img"], use_container_width=True)
+
+        with col_data:
+            st.markdown("#### 🔍 Detection Details")
+            for i, data in enumerate(analysis["meal_display_data"]):
+                with st.expander(f"**{i+1}. {data['Food Name']}**", expanded=(i == 0)):
+                    st.write(f"**Mass:** {data['Calculated Mass (g)']}g")
+                    st.write(f"**Code:** {data['Food Code']}")
+
+                    # Macros in compact format
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Cal", f"{data['Energy (kcal)']:.0f}")
+                    m2.metric("Prot", f"{data['Protein (g)']:.1f}g")
+                    m3.metric("Carb", f"{data['Carbohydrate (g)']:.1f}g")
+                    m4.metric("Fat", f"{data['Fat (g)']:.1f}g")
+
+                    # Ingredients
+                    ing_list = data.get('Ingredients', [])
+                    if ing_list:
+                        st.markdown("**Ingredients:**")
+                        st.caption(", ".join(ing_list[:12]))
+
+                    # Source
+                    if data['Source'] not in ["N/A", "Source not available"]:
+                        st.markdown(f"**Source:** [View Recipe]({data['Source']})")
+
+        st.markdown("---")
+
+        # Macro Dashboard
+        render_macro_dashboard(analysis["log_payload"])
+
+        # Trivia Section
+        if analysis.get("trivia"):
+            st.markdown("---")
+            st.info(f"🧠 **Did you know?** {analysis['trivia']}")
+
+    with tab2:
+        # Chat Tab - Interactive Q&A
+        st.markdown("### 💬 Ask About Your Meal")
+
+        # Suggested Questions
+        if st.session_state.show_suggestions:
+            st.markdown("**💡 Suggested Questions:**")
+            suggestions = [
+                "What are the ingredients in this meal?",
+                "I have diabetes, can I consume this?",
+                "Is this meal healthy?",
+                "Show me the sources for these recipes",
+                "What's the protein content?",
+                "Can I eat this on a keto diet?"
+            ]
+
+            # Display as clickable buttons in 2 columns
+            col1, col2 = st.columns(2)
+            for idx, suggestion in enumerate(suggestions):
+                with col1 if idx % 2 == 0 else col2:
+                    if st.button(suggestion, key=f"suggest_{idx}", use_container_width=True):
+                        # Add user message
+                        st.session_state.messages.append({
+                            "role": "user",
+                            "type": "text",
+                            "content": suggestion
+                        })
+
+                        # Generate response immediately
+                        response = CHAT_ENGINE.answer_question(suggestion)
+
+                        # Add assistant response
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "type": "text",
+                            "content": response
+                        })
+
+                        st.session_state.show_suggestions = False
+                        st.rerun()
+
+            st.markdown("---")
+
+        # Chat History
+        for msg in st.session_state.messages:
+            if msg["type"] == "text":
+                with st.chat_message(msg["role"]):
+                    st.write(msg["content"])
+
+        # Chat Input
+        if prompt := st.chat_input("Ask me anything about your meal..."):
+            st.session_state.messages.append({"role": "user", "type": "text", "content": prompt})
+            st.session_state.show_suggestions = False
+
+            # Generate Response
+            with st.spinner("🤔 Thinking..."):
+                response = CHAT_ENGINE.answer_question(prompt)
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "type": "text",
+                "content": response
+            })
+            st.rerun()
+
+    with tab3:
+        # History Tab - All Past Analyses
+        st.markdown("### 📜 Analysis History")
+
+        if len(st.session_state.messages) == 0:
+            st.info("No analysis history yet. Upload a meal photo to get started!")
+        else:
+            # Show all past reports
+            report_count = 0
+            for msg in reversed(st.session_state.messages):
+                if msg["role"] == "assistant" and msg["type"] == "report":
+                    report_count += 1
+                    data = msg["content"]
+
+                    with st.expander(
+                        f"**Meal {report_count}** - {data['total_summary']['Energy (kcal)']:.0f} kcal",
+                        expanded=False
+                    ):
+                        if "image" in msg:
+                            st.image(msg["image"], width=300)
+
+                        st.write(f"**Timestamp:** {data.get('timestamp', 'N/A')}")
+
+                        # Food items
+                        for k, v in data.items():
+                            if k.startswith("food_item"):
+                                st.caption(f"• {v['name']} ({v['mass_g']}g)")
+
+                        # Macros
+                        total = data['total_summary']
+                        st.write(
+                            f"**Macros:** {total['Protein (g)']:.1f}g protein, "
+                            f"{total['Carbohydrate (g)']:.1f}g carbs, "
+                            f"{total['Fat (g)']:.1f}g fat"
+                        )
+
+else:
+    # Welcome Screen
+    st.markdown("---")
+    st.markdown("### 👋 Welcome to FoodVisionAI!")
+    st.info(
+        "📸 **Get Started:** Upload a meal photo using the sidebar to analyze its "
+        "nutritional content, ingredients, and get personalized health insights!"
+    )
+
+    # Feature highlights
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("#### 🔍 AI Detection")
+        st.write("Advanced computer vision to identify food items")
+    with col2:
+        st.markdown("#### 📊 Nutrition Analysis")
+        st.write("Detailed macro breakdown and calorie tracking")
+    with col3:
+        st.markdown("#### 💬 Smart Chat")
+        st.write("Ask health questions with ingredient-based reasoning")

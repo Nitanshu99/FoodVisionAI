@@ -1,0 +1,257 @@
+$ python train.py
+
+============================================================
+HARDWARE DETECTION
+============================================================
+System:          Linux
+Machine:         x86_64
+CPU Cores:       20
+RAM:             196.5 GB
+Apple Silicon:   False
+NVIDIA GPU:      True
+Cooling:         active
+System Type:     linux_server
+============================================================
+
+
+============================================================
+AUTO-GENERATED CONFIGURATION
+============================================================
+Profile:         Linux Server (20 cores, GPU: True)
+Workers:         15
+YOLO GPU:        True
+ONNX Providers:  TensorrtExecutionProvider, CUDAExecutionProvider, CPUExecutionProvider
+Thermal Aware:   False
+
+--- TRAINING OPTIMIZATION ---
+GPU:             NVIDIA RTX A6000
+GPU Memory:      47 GB
+Batch Size:      96
+DataLoader Workers: 12
+Precision:       fp16
+Pin Memory:      True
+Persistent Workers: True
+============================================================
+
+
+✅ Using auto-optimized settings:
+   Batch Size: 96
+   GPU: NVIDIA RTX A6000
+   Precision: fp16
+
+🚀 Starting Unified Model Training on Device: GPU
+TensorFlow Version: 2.16.1
+📂 Training Data: /home/jovyan/vault/data/yolo_processed/train
+
+⚡ Enabling TensorFloat-32 (TF32) for A6000...
+   TF32 enabled: 2-3x faster matrix operations!
+⚡ Enabling XLA JIT compilation...
+   XLA JIT enabled: 1.5-2x faster execution!
+
+⚡ Mixed Precision available but disabled for TensorFlow compatibility
+   (TensorFlow categorical outputs require float32)
+
+🔍 Class Filtering Report:
+   - Total Folders Found: 55
+   - Excluded: ['ASC321']
+   - Final Class Count: 55
+Loading data from: /home/jovyan/vault/data/yolo_processed/train...
+Found 97800 files belonging to 55 classes.
+2025-12-15 22:55:41.319038: W tensorflow/core/common_runtime/gpu/gpu_bfc_allocator.cc:47] Overriding orig_value setting because the TF_FORCE_GPU_ALLOW_GROWTH environment variable is set. Original config value was 0.
+Loading data from: /home/jovyan/vault/data/yolo_processed/val...
+Found 10947 files belonging to 55 classes.
+✅ Detected 55 Classes.
+💾 Class names saved to /home/jovyan/vault/class_names.npy
+
+--- Resuming from Checkpoint: /home/jovyan/vault/models/checkpoints/model_yolo_best.keras ---
+>> Model and training state loaded successfully.
+
+🔥 Training Started...
+Epoch 1/50
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1765839351.643862    6689 service.cc:145] XLA service 0x7fe0c8005480 initialized for platform CUDA (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1765839351.643908    6689 service.cc:153]   StreamExecutor device (0): NVIDIA RTX A6000, Compute Capability 8.6
+I0000 00:00:1765839352.136806    6689 device_compiler.h:188] Compiled cluster using XLA!  This line is logged at most once for the lifetime of the process.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1765839377.645343    6744 asm_compiler.cc:369] ptxas warning : Registers are spilled to local memory in function 'triton_gemm_dot_28662', 304 bytes spill stores, 280 bytes spill loads
+
+I0000 00:00:1765839377.866539    6761 asm_compiler.cc:369] ptxas warning : Registers are spilled to local memory in function 'triton_gemm_dot_28662', 40 bytes spill stores, 40 bytes spill loads
+
+2025-12-15 22:56:25.416137: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng12{k5=1,k6=0,k7=1,k10=1} for conv (f32[96,48,256,256]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,48,256,256]{3,2,1,0}, f32[48,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=48, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:25.417583: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.00153757s
+Trying algorithm eng12{k5=1,k6=0,k7=1,k10=1} for conv (f32[96,48,256,256]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,48,256,256]{3,2,1,0}, f32[48,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=48, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:26.417826: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng12{k5=1,k6=0,k7=1,k10=0} for conv (f32[96,48,256,256]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,48,256,256]{3,2,1,0}, f32[48,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=48, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:26.477950: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.060242655s
+Trying algorithm eng12{k5=1,k6=0,k7=1,k10=0} for conv (f32[96,48,256,256]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,48,256,256]{3,2,1,0}, f32[48,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=48, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:41.919102: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng46{k2=0,k5=2,k14=4} for conv (f32[96,240,128,128]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,240,128,128]{3,2,1,0}, f32[240,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=240, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:41.954654: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.035664596s
+Trying algorithm eng46{k2=0,k5=2,k14=4} for conv (f32[96,240,128,128]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,240,128,128]{3,2,1,0}, f32[240,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=240, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:42.954894: E external/local_xla/xla/service/slow_operation_alarm.cc:65] Trying algorithm eng46{k2=1,k5=3,k14=2} for conv (f32[96,240,128,128]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,240,128,128]{3,2,1,0}, f32[240,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=240, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+2025-12-15 22:56:43.044522: E external/local_xla/xla/service/slow_operation_alarm.cc:133] The operation took 1.089745278s
+Trying algorithm eng46{k2=1,k5=3,k14=2} for conv (f32[96,240,128,128]{3,2,1,0}, u8[0]{0}) custom-call(f32[96,240,128,128]{3,2,1,0}, f32[240,1,3,3]{3,2,1,0}), window={size=3x3 pad=1_1x1_1}, dim_labels=bf01_oi01->bf01, feature_group_count=240, custom_call_target="__cudnn$convForward", backend_config={"operation_queue_id":"0","wait_on_operation_queues":[],"cudnn_conv_backend_config":{"conv_result_scale":1,"activation_mode":"kNone","side_input_scale":0,"leakyrelu_alpha":0}} is taking a while...
+1018/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 402ms/step - accuracy: 0.7545 - loss: 1.5613 - top_3_accuracy: 0.8996I0000 00:00:1765839853.675164    6960 asm_compiler.cc:369] ptxas warning : Registers are spilled to local memory in function 'triton_gemm_dot_28662', 184 bytes spill stores, 208 bytes spill loads
+
+I0000 00:00:1765839853.911217    6944 asm_compiler.cc:369] ptxas warning : Registers are spilled to local memory in function 'triton_gemm_dot_28664', 212 bytes spill stores, 212 bytes spill loads
+
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 458ms/step - accuracy: 0.7545 - loss: 1.5613 - top_3_accuracy: 0.8996
+Epoch 1: val_accuracy improved from None to 0.81493, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 603s 515ms/step - accuracy: 0.7582 - loss: 1.5489 - top_3_accuracy: 0.9017 - val_accuracy: 0.8149 - val_loss: 1.3831 - val_top_3_accuracy: 0.9316 - learning_rate: 0.0010
+Epoch 2/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7653 - loss: 1.5196 - top_3_accuracy: 0.9075  
+Epoch 2: val_accuracy improved from 0.81493 to 0.81858, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.7671 - loss: 1.5108 - top_3_accuracy: 0.9092 - val_accuracy: 0.8186 - val_loss: 1.3583 - val_top_3_accuracy: 0.9336 - learning_rate: 0.0010
+Epoch 3/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.7755 - loss: 1.4861 - top_3_accuracy: 0.9145  
+Epoch 3: val_accuracy improved from 0.81858 to 0.82479, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 450ms/step - accuracy: 0.7752 - loss: 1.4826 - top_3_accuracy: 0.9150 - val_accuracy: 0.8248 - val_loss: 1.3385 - val_top_3_accuracy: 0.9366 - learning_rate: 0.0010
+Epoch 4/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7785 - loss: 1.4716 - top_3_accuracy: 0.9145  
+Epoch 4: val_accuracy improved from 0.82479 to 0.82497, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 450ms/step - accuracy: 0.7793 - loss: 1.4679 - top_3_accuracy: 0.9152 - val_accuracy: 0.8250 - val_loss: 1.3316 - val_top_3_accuracy: 0.9377 - learning_rate: 0.0010
+Epoch 5/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7835 - loss: 1.4571 - top_3_accuracy: 0.9178  
+Epoch 5: val_accuracy improved from 0.82497 to 0.82625, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.7849 - loss: 1.4526 - top_3_accuracy: 0.9183 - val_accuracy: 0.8263 - val_loss: 1.3199 - val_top_3_accuracy: 0.9359 - learning_rate: 0.0010
+Epoch 6/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7858 - loss: 1.4470 - top_3_accuracy: 0.9194  
+Epoch 6: val_accuracy improved from 0.82625 to 0.82945, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.7861 - loss: 1.4435 - top_3_accuracy: 0.9199 - val_accuracy: 0.8295 - val_loss: 1.3130 - val_top_3_accuracy: 0.9382 - learning_rate: 0.0010
+Epoch 7/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7872 - loss: 1.4403 - top_3_accuracy: 0.9219  
+Epoch 7: val_accuracy did not improve from 0.82945
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.7872 - loss: 1.4381 - top_3_accuracy: 0.9215 - val_accuracy: 0.8260 - val_loss: 1.3225 - val_top_3_accuracy: 0.9397 - learning_rate: 0.0010
+Epoch 8/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7908 - loss: 1.4293 - top_3_accuracy: 0.9230  
+Epoch 8: val_accuracy did not improve from 0.82945
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.7908 - loss: 1.4274 - top_3_accuracy: 0.9228 - val_accuracy: 0.8290 - val_loss: 1.3116 - val_top_3_accuracy: 0.9387 - learning_rate: 0.0010
+Epoch 9/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7915 - loss: 1.4278 - top_3_accuracy: 0.9230  
+Epoch 9: val_accuracy did not improve from 0.82945
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.7914 - loss: 1.4259 - top_3_accuracy: 0.9229 - val_accuracy: 0.8295 - val_loss: 1.3096 - val_top_3_accuracy: 0.9389 - learning_rate: 0.0010
+Epoch 10/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7951 - loss: 1.4156 - top_3_accuracy: 0.9232  
+Epoch 10: val_accuracy improved from 0.82945 to 0.83256, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.7938 - loss: 1.4164 - top_3_accuracy: 0.9234 - val_accuracy: 0.8326 - val_loss: 1.3052 - val_top_3_accuracy: 0.9384 - learning_rate: 0.0010
+Epoch 11/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.7949 - loss: 1.4117 - top_3_accuracy: 0.9260  
+Epoch 11: val_accuracy improved from 0.83256 to 0.83575, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 449ms/step - accuracy: 0.7935 - loss: 1.4123 - top_3_accuracy: 0.9265 - val_accuracy: 0.8358 - val_loss: 1.2983 - val_top_3_accuracy: 0.9395 - learning_rate: 0.0010
+Epoch 12/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7943 - loss: 1.4157 - top_3_accuracy: 0.9245  
+Epoch 12: val_accuracy did not improve from 0.83575
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.7943 - loss: 1.4125 - top_3_accuracy: 0.9255 - val_accuracy: 0.8320 - val_loss: 1.3020 - val_top_3_accuracy: 0.9416 - learning_rate: 0.0010
+Epoch 13/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7989 - loss: 1.4085 - top_3_accuracy: 0.9260  
+Epoch 13: val_accuracy did not improve from 0.83575
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.7969 - loss: 1.4091 - top_3_accuracy: 0.9259 - val_accuracy: 0.8337 - val_loss: 1.2987 - val_top_3_accuracy: 0.9405 - learning_rate: 0.0010
+Epoch 14/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.7978 - loss: 1.4041 - top_3_accuracy: 0.9276  
+Epoch 14: val_accuracy did not improve from 0.83575
+
+Epoch 14: ReduceLROnPlateau reducing learning rate to 0.00020000000949949026.
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 449ms/step - accuracy: 0.7971 - loss: 1.4038 - top_3_accuracy: 0.9272 - val_accuracy: 0.8275 - val_loss: 1.3063 - val_top_3_accuracy: 0.9409 - learning_rate: 0.0010
+Epoch 15/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8073 - loss: 1.3767 - top_3_accuracy: 0.9322  
+Epoch 15: val_accuracy improved from 0.83575 to 0.84096, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 451ms/step - accuracy: 0.8102 - loss: 1.3677 - top_3_accuracy: 0.9334 - val_accuracy: 0.8410 - val_loss: 1.2746 - val_top_3_accuracy: 0.9431 - learning_rate: 2.0000e-04
+Epoch 16/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8123 - loss: 1.3678 - top_3_accuracy: 0.9321  
+Epoch 16: val_accuracy improved from 0.84096 to 0.84142, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.8124 - loss: 1.3636 - top_3_accuracy: 0.9336 - val_accuracy: 0.8414 - val_loss: 1.2732 - val_top_3_accuracy: 0.9441 - learning_rate: 2.0000e-04
+Epoch 17/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8114 - loss: 1.3616 - top_3_accuracy: 0.9336  
+Epoch 17: val_accuracy improved from 0.84142 to 0.84297, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.8126 - loss: 1.3585 - top_3_accuracy: 0.9343 - val_accuracy: 0.8430 - val_loss: 1.2736 - val_top_3_accuracy: 0.9437 - learning_rate: 2.0000e-04
+Epoch 18/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8139 - loss: 1.3619 - top_3_accuracy: 0.9333  
+Epoch 18: val_accuracy improved from 0.84297 to 0.84324, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 450ms/step - accuracy: 0.8138 - loss: 1.3587 - top_3_accuracy: 0.9348 - val_accuracy: 0.8432 - val_loss: 1.2706 - val_top_3_accuracy: 0.9446 - learning_rate: 2.0000e-04
+Epoch 19/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8125 - loss: 1.3626 - top_3_accuracy: 0.9329  
+Epoch 19: val_accuracy improved from 0.84324 to 0.84443, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 451ms/step - accuracy: 0.8136 - loss: 1.3580 - top_3_accuracy: 0.9346 - val_accuracy: 0.8444 - val_loss: 1.2708 - val_top_3_accuracy: 0.9451 - learning_rate: 2.0000e-04
+Epoch 20/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8144 - loss: 1.3551 - top_3_accuracy: 0.9356  
+Epoch 20: val_accuracy did not improve from 0.84443
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.8143 - loss: 1.3540 - top_3_accuracy: 0.9358 - val_accuracy: 0.8426 - val_loss: 1.2688 - val_top_3_accuracy: 0.9437 - learning_rate: 2.0000e-04
+Epoch 21/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8130 - loss: 1.3582 - top_3_accuracy: 0.9351  
+Epoch 21: val_accuracy improved from 0.84443 to 0.84489, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 450ms/step - accuracy: 0.8145 - loss: 1.3548 - top_3_accuracy: 0.9359 - val_accuracy: 0.8449 - val_loss: 1.2661 - val_top_3_accuracy: 0.9448 - learning_rate: 2.0000e-04
+Epoch 22/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8140 - loss: 1.3586 - top_3_accuracy: 0.9342  
+Epoch 22: val_accuracy did not improve from 0.84489
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 447ms/step - accuracy: 0.8145 - loss: 1.3535 - top_3_accuracy: 0.9353 - val_accuracy: 0.8445 - val_loss: 1.2662 - val_top_3_accuracy: 0.9453 - learning_rate: 2.0000e-04
+Epoch 23/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8137 - loss: 1.3550 - top_3_accuracy: 0.9350  
+Epoch 23: val_accuracy improved from 0.84489 to 0.84626, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 450ms/step - accuracy: 0.8140 - loss: 1.3546 - top_3_accuracy: 0.9350 - val_accuracy: 0.8463 - val_loss: 1.2650 - val_top_3_accuracy: 0.9457 - learning_rate: 2.0000e-04
+Epoch 24/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8170 - loss: 1.3549 - top_3_accuracy: 0.9346  
+Epoch 24: val_accuracy improved from 0.84626 to 0.84662, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 451ms/step - accuracy: 0.8163 - loss: 1.3524 - top_3_accuracy: 0.9351 - val_accuracy: 0.8466 - val_loss: 1.2634 - val_top_3_accuracy: 0.9461 - learning_rate: 2.0000e-04
+Epoch 25/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8161 - loss: 1.3527 - top_3_accuracy: 0.9361  
+Epoch 25: val_accuracy did not improve from 0.84662
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8152 - loss: 1.3507 - top_3_accuracy: 0.9365 - val_accuracy: 0.8455 - val_loss: 1.2648 - val_top_3_accuracy: 0.9451 - learning_rate: 2.0000e-04
+Epoch 26/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8146 - loss: 1.3556 - top_3_accuracy: 0.9351  
+Epoch 26: val_accuracy did not improve from 0.84662
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.8138 - loss: 1.3549 - top_3_accuracy: 0.9352 - val_accuracy: 0.8460 - val_loss: 1.2660 - val_top_3_accuracy: 0.9446 - learning_rate: 2.0000e-04
+Epoch 27/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8141 - loss: 1.3530 - top_3_accuracy: 0.9352  
+Epoch 27: val_accuracy did not improve from 0.84662
+
+Epoch 27: ReduceLROnPlateau reducing learning rate to 4.0000001899898055e-05.
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.8151 - loss: 1.3515 - top_3_accuracy: 0.9360 - val_accuracy: 0.8450 - val_loss: 1.2661 - val_top_3_accuracy: 0.9455 - learning_rate: 2.0000e-04
+Epoch 28/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8181 - loss: 1.3470 - top_3_accuracy: 0.9364  
+Epoch 28: val_accuracy improved from 0.84662 to 0.84672, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 461s 450ms/step - accuracy: 0.8182 - loss: 1.3443 - top_3_accuracy: 0.9366 - val_accuracy: 0.8467 - val_loss: 1.2617 - val_top_3_accuracy: 0.9463 - learning_rate: 4.0000e-05
+Epoch 29/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8199 - loss: 1.3434 - top_3_accuracy: 0.9376  
+Epoch 29: val_accuracy improved from 0.84672 to 0.84681, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 451ms/step - accuracy: 0.8196 - loss: 1.3429 - top_3_accuracy: 0.9381 - val_accuracy: 0.8468 - val_loss: 1.2616 - val_top_3_accuracy: 0.9464 - learning_rate: 4.0000e-05
+Epoch 30/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8177 - loss: 1.3451 - top_3_accuracy: 0.9359  
+Epoch 30: val_accuracy improved from 0.84681 to 0.84726, saving model to /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 462s 451ms/step - accuracy: 0.8179 - loss: 1.3421 - top_3_accuracy: 0.9371 - val_accuracy: 0.8473 - val_loss: 1.2601 - val_top_3_accuracy: 0.9472 - learning_rate: 4.0000e-05
+Epoch 31/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8172 - loss: 1.3448 - top_3_accuracy: 0.9377  
+Epoch 31: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8184 - loss: 1.3420 - top_3_accuracy: 0.9381 - val_accuracy: 0.8468 - val_loss: 1.2604 - val_top_3_accuracy: 0.9472 - learning_rate: 4.0000e-05
+Epoch 32/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8193 - loss: 1.3431 - top_3_accuracy: 0.9379  
+Epoch 32: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8193 - loss: 1.3408 - top_3_accuracy: 0.9386 - val_accuracy: 0.8472 - val_loss: 1.2596 - val_top_3_accuracy: 0.9463 - learning_rate: 4.0000e-05
+Epoch 33/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8173 - loss: 1.3429 - top_3_accuracy: 0.9375  
+Epoch 33: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8177 - loss: 1.3425 - top_3_accuracy: 0.9383 - val_accuracy: 0.8464 - val_loss: 1.2599 - val_top_3_accuracy: 0.9467 - learning_rate: 4.0000e-05
+Epoch 34/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8183 - loss: 1.3456 - top_3_accuracy: 0.9374  
+Epoch 34: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.8185 - loss: 1.3426 - top_3_accuracy: 0.9381 - val_accuracy: 0.8471 - val_loss: 1.2593 - val_top_3_accuracy: 0.9475 - learning_rate: 4.0000e-05
+Epoch 35/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8201 - loss: 1.3437 - top_3_accuracy: 0.9374  
+Epoch 35: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 460s 448ms/step - accuracy: 0.8197 - loss: 1.3413 - top_3_accuracy: 0.9383 - val_accuracy: 0.8470 - val_loss: 1.2587 - val_top_3_accuracy: 0.9467 - learning_rate: 4.0000e-05
+Epoch 36/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8199 - loss: 1.3445 - top_3_accuracy: 0.9370  
+Epoch 36: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8196 - loss: 1.3416 - top_3_accuracy: 0.9372 - val_accuracy: 0.8470 - val_loss: 1.2588 - val_top_3_accuracy: 0.9473 - learning_rate: 4.0000e-05
+Epoch 37/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 403ms/step - accuracy: 0.8191 - loss: 1.3431 - top_3_accuracy: 0.9377  
+Epoch 37: val_accuracy did not improve from 0.84726
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8190 - loss: 1.3408 - top_3_accuracy: 0.9381 - val_accuracy: 0.8466 - val_loss: 1.2594 - val_top_3_accuracy: 0.9472 - learning_rate: 4.0000e-05
+Epoch 38/50
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 0s 404ms/step - accuracy: 0.8206 - loss: 1.3401 - top_3_accuracy: 0.9365  
+Epoch 38: val_accuracy did not improve from 0.84726
+
+Epoch 38: ReduceLROnPlateau reducing learning rate to 8.000000525498762e-06.
+1019/1019 ━━━━━━━━━━━━━━━━━━━━ 459s 448ms/step - accuracy: 0.8194 - loss: 1.3406 - top_3_accuracy: 0.9373 - val_accuracy: 0.8467 - val_loss: 1.2602 - val_top_3_accuracy: 0.9467 - learning_rate: 4.0000e-05
+Epoch 38: early stopping
+Restoring model weights from the end of the best epoch: 30.
+
+✅ Training Complete. Best model saved to: /home/jovyan/vault/models/checkpoints/model_yolo_best.keras
+$ 

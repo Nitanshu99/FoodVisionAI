@@ -16,6 +16,7 @@ from PIL import Image
 from keras import Model
 from src import config
 from src.data_tools.background_removal import BackgroundRemover
+import tensorflow as tf
 
 def get_class_names() -> List[str]:
     """
@@ -107,8 +108,15 @@ def predict_food(
     class_names: List[str]
 ) -> List[Dict[str, Any]]:
     """
-    Single-Model Interface: Returns a LIST of detected food items.
-    Uses split-flow approach for consistency between training and inference.
+    NEW PIPELINE: Segment first, then background removal per crop.
+
+    Pipeline Flow:
+    1. YOLOv8m-seg detects segments on RAW image (threshold 0.25)
+    2. For each detected segment:
+       a. Crop from raw image
+       b. U2Net background removal on crop only
+       c. EfficientNet classification on clean crop
+       d. Log result
 
     Args:
         model (Model): The unified EfficientNet-B5 model.
@@ -119,62 +127,89 @@ def predict_food(
     Returns:
         List[Dict[str, Any]]: List of prediction results for each valid food item.
     """
-    # Initialize background remover
+    # Initialize background remover (will be used per-crop)
     bg_remover = BackgroundRemover()
-    
-    # 1. Geometry Flow: Calculate PPM from raw image (preserves plate context)
-    _, ppm = assessor.analyze_scene(raw_image)
-    
-    # 2. Topology Flow: Remove background and segment on clean image
-    clean_image = bg_remover.process_image(raw_image)
-    detected_objects, _ = assessor.analyze_scene(clean_image)
 
-    # 3. Pre-Decision Filtering (Relative Area Threshold)
+    # 1. Run YOLO segmentation on RAW image (preserves all details)
+    detected_objects, ppm = assessor.analyze_scene(raw_image)
+
+    print(f"🔍 YOLO detected {len(detected_objects) if detected_objects else 0} segments on raw image")
+
+    # 2. Adaptive Filtering: Keep top N largest segments
+    MAX_SEGMENTS = 8  # Process up to 8 food items
     filtered_objects = []
+
     if detected_objects:
-        max_area = max(obj['area_pixels'] for obj in detected_objects)
-        threshold_area = max_area * 0.3
-        
-        for obj in detected_objects:
-            if obj['area_pixels'] >= threshold_area:
-                filtered_objects.append(obj)
+        # Sort by area (largest first)
+        sorted_objects = sorted(detected_objects, key=lambda x: x['area_pixels'], reverse=True)
+
+        # Keep top N segments
+        filtered_objects = sorted_objects[:MAX_SEGMENTS]
+
+        print(f"📊 Adaptive filtering: Keeping top {len(filtered_objects)} largest segments (max {MAX_SEGMENTS})")
+
+        for idx, obj in enumerate(sorted_objects):
+            area = obj['area_pixels']
+            if idx < MAX_SEGMENTS:
+                print(f"   ✅ Segment {idx+1}: area={area:.0f} px (KEPT - rank {idx+1})")
+            else:
+                print(f"   ❌ Segment {idx+1}: area={area:.0f} px (FILTERED OUT - too small)")
+
+        print(f"✅ {len(filtered_objects)} segments will be processed")
 
     final_results = []
 
-    # 4. Process each detected object
-    for obj in filtered_objects:
-        # Extract crop using shared logic
-        crop = process_crop(clean_image, obj['bbox'])
-        
-        if crop is None:
+    # 3. Process each detected segment independently
+    for idx, obj in enumerate(filtered_objects):
+        print(f"\n📦 Processing segment {idx + 1}/{len(filtered_objects)}...")
+
+        # Extract crop from RAW image (preserves original food details)
+        raw_crop = process_crop(raw_image, obj['bbox'])
+
+        if raw_crop is None:
+            print(f"⚠️ Segment {idx + 1}: Failed to extract crop, skipping")
             continue
 
-        # Single model prediction
-        class_id, top_preds = run_classification(model, crop, class_names)
+        # Apply U2Net background removal to THIS crop only
+        print(f"🧹 Segment {idx + 1}: Applying U2Net background removal to crop...")
+        clean_crop = bg_remover.process_image(raw_crop)
 
-        # Calculate area using clean mask but raw PPM
+        # Classify the clean crop with EfficientNet
+        print(f"🧠 Segment {idx + 1}: Running EfficientNet classification...")
+        class_id, top_preds = run_classification(model, clean_crop, class_names)
+
+        print(f"✅ Segment {idx + 1}: Classified as '{class_id}' (confidence: {top_preds[0][1]:.2%})")
+        print(f"   Top 3 predictions: {[(name, f'{conf:.2%}') for name, conf in top_preds[:3]]}")
+
+        # Calculate area using detected mask and PPM from raw image
         visual_stats = {
             "area_cm2": obj['area_pixels'] / (ppm ** 2),
             "bbox": obj['bbox'],
             "mask": obj['mask'],
             "ppm": ppm,
-            "occupancy_ratio": obj['area_pixels'] / (clean_image.shape[0] * clean_image.shape[1])
+            "occupancy_ratio": obj['area_pixels'] / (raw_image.shape[0] * raw_image.shape[1])
         }
 
         final_results.append({
             "class_id": class_id,
             "top_predictions": top_preds,
             "visual_stats": visual_stats,
-            "crop_type": "Clean Crop (Unified Model)"
+            "crop_type": "Raw Crop + U2Net (New Pipeline)"
         })
 
-    # Fallback: If no objects detected, use full clean image
+    # Fallback: If no objects detected, process full image
     if not final_results:
-        class_id, top_preds = run_classification(model, clean_image, class_names)
-        
+        print("⚠️ No segments detected, using full image as fallback")
+
+        # Apply U2Net to full image
+        clean_full_image = bg_remover.process_image(raw_image)
+        class_id, top_preds = run_classification(model, clean_full_image, class_names)
+
+        print(f"✅ Fallback: Classified as '{class_id}' (confidence: {top_preds[0][1]:.2%})")
+
         visual_stats = {
             "area_cm2": 0.0,
-            "ppm": ppm,
+            "ppm": ppm if ppm else 1.0,
             "occupancy_ratio": 1.0,
             "error": "No specific object detected"
         }
@@ -183,7 +218,31 @@ def predict_food(
             "class_id": class_id,
             "top_predictions": top_preds,
             "visual_stats": visual_stats,
-            "crop_type": "Full Clean Image (Fallback)"
+            "crop_type": "Full Image + U2Net (Fallback)"
         })
 
+    print(f"\n🎉 Pipeline complete: {len(final_results)} food items detected\n")
     return final_results
+
+def preprocess_for_model(img: np.ndarray) -> tf.Tensor:
+    """
+    Preprocesses image for EfficientNet-B5 model inference.
+    Matches the exact preprocessing used during training.
+    
+    Args:
+        img (np.ndarray): Image array in BGR format, shape (512, 512, 3).
+    
+    Returns:
+        tf.Tensor: Preprocessed tensor ready for model input, shape (1, 512, 512, 3).
+    """
+    # Convert BGR to RGB (OpenCV uses BGR, models expect RGB)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Normalize to [0, 1] range (standard for EfficientNet)
+    img_normalized = img_rgb.astype(np.float32) / 255.0
+    
+    # Add batch dimension: (512, 512, 3) -> (1, 512, 512, 3)
+    img_batch = np.expand_dims(img_normalized, axis=0)
+    
+    # Convert to TensorFlow tensor
+    return tf.convert_to_tensor(img_batch, dtype=tf.float32)

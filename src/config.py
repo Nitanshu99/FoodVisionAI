@@ -47,6 +47,9 @@ FINAL_MODEL_PATH = MODEL_GLOBAL_PATH
 # YOLO Segmentation Model Path (Offline)
 YOLO_MODEL_PATH = MODELS_DIR / "yolov8m-seg.pt"
 
+# LLM Model Path (Offline GGUF)
+LLM_MODEL_PATH = MODELS_DIR / "qwen2.5-0.5b-instruct-fp16.gguf"
+
 # Ensure output directories exist
 os.makedirs(CHECKPOINT_DIR, exist_ok=True)
 
@@ -79,7 +82,7 @@ PLATE_DIAMETER_CM = 28.0
 # ==============================================================================
 # DATABASE CONFIGURATION
 # ==============================================================================
-LABELS_PATH = BASE_DIR / "class_names.npy"
+LABELS_PATH = BASE_DIR / "class_names.npy"  # Updated to root directory
 
 # Database Registry
 DB_FILES = {
