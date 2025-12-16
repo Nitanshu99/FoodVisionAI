@@ -14,17 +14,16 @@ import cv2
 import numpy as np
 import streamlit as st
 import pandas as pd
-import keras
 from PIL import Image
 
 # Local imports
 import config
-from src.vision_model import build_model
+from src.models import build_model
+from src.models.loader import load_model
 from src.nutrient_engine import NutrientEngine
 from src.segmentation import DietaryAssessor
 from src.vision_utils import predict_food
 from src.utils.file_utils import get_class_names
-from src.augmentation import RandomGaussianBlur
 
 # --- Setup ---
 st.set_page_config(
@@ -38,7 +37,7 @@ st.set_page_config(
 def load_resources():
     # Load Unified Model (trained on clean crops)
     if config.MODEL_LOCAL_PATH.exists():
-        model = keras.models.load_model(config.MODEL_LOCAL_PATH, custom_objects={"RandomGaussianBlur": RandomGaussianBlur}, compile=False)
+        model = load_model(config.MODEL_LOCAL_PATH, compile=False)
     else:
         st.warning("⚠️ Unified Model not found. Using dummy model.")
         model = build_model(100) # Dummy

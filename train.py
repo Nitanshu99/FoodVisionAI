@@ -16,7 +16,8 @@ from pathlib import Path
 
 # Local imports
 import config
-from src import augmentation, vision_model
+from src.models import build_model, get_augmentation_pipeline, RandomGaussianBlur
+from src.models.loader import load_model as load_keras_model
 
 # Auto-configuration for hardware optimization
 try:
@@ -71,7 +72,7 @@ def load_dataset(directory: Path, allowed_classes: list, is_training: bool = Fal
     
     # Apply Augmentation (Only for Training)
     if is_training:
-        aug_pipeline = augmentation.get_augmentation_pipeline()
+        aug_pipeline = get_augmentation_pipeline()
         ds = ds.map(
             lambda x, y: (aug_pipeline(x, training=True), y),
             num_parallel_calls=AUTOTUNE
@@ -145,19 +146,18 @@ def main():
         print(f"\n--- Resuming from Checkpoint: {FINAL_MODEL_PATH} ---")
         try:
             # Load model with custom objects for augmentation layers
-            custom_objects = {"RandomGaussianBlur": augmentation.RandomGaussianBlur}
-            model = keras.models.load_model(FINAL_MODEL_PATH, custom_objects=custom_objects)
+            model = load_keras_model(FINAL_MODEL_PATH, compile=True)
             print(">> Model and training state loaded successfully.")
-            
+
             # TODO: Extract epoch number from model if needed for initial_epoch
             # For now, ModelCheckpoint will handle best model restoration
-            
+
         except Exception as e:
             print(f">> Warning: Could not load checkpoint ({e}). Building new model.")
-            model = vision_model.build_model(num_classes=len(class_names))
+            model = build_model(num_classes=len(class_names))
     else:
         print("\n🏗️ Building New EfficientNet-B5 Model...")
-        model = vision_model.build_model(num_classes=len(class_names))
+        model = build_model(num_classes=len(class_names))
     
     # 5. Callbacks
     callbacks_list = [
