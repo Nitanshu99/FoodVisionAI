@@ -1,5 +1,6 @@
 data/
-models/
+/models/
+!src/models/
 __pycache__/
 *.pyc
 *.pyo
