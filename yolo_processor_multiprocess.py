@@ -49,7 +49,7 @@ import json
 # Import mapping & BG remover
 from src.data_tools.folder_mapper import get_manual_mapping, group_sources_by_target
 from src.data_tools.background_removal import BackgroundRemover
-from src.vision_utils import process_crop
+from src.utils.image_utils import process_crop
 
 # Auto-configuration
 try:

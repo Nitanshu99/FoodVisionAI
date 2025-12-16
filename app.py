@@ -22,7 +22,8 @@ import config
 from src.vision_model import build_model
 from src.nutrient_engine import NutrientEngine
 from src.segmentation import DietaryAssessor
-from src.vision_utils import predict_food, get_class_names
+from src.vision_utils import predict_food
+from src.utils.file_utils import get_class_names
 from src.augmentation import RandomGaussianBlur
 
 # --- Setup ---

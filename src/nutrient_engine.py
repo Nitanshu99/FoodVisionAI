@@ -12,6 +12,7 @@ import numpy as np
 import re
 from typing import Dict, Union, Any, List
 import config
+from src.utils.data_utils import safe_get, clean_string_list
 
 class NutrientEngine:
     """
@@ -109,9 +110,8 @@ class NutrientEngine:
         try:
             mask = self.recipes_db['recipe_code'] == class_id
             ingredients = self.recipes_db.loc[mask, 'ingredient_name_org'].tolist()
-            # Clean up: remove NaNs and duplicates
-            clean_ingredients = list(set([str(i).strip() for i in ingredients if i and str(i).lower() != 'nan']))
-            return clean_ingredients
+            # Clean up: remove NaNs and duplicates using utility function
+            return clean_string_list(ingredients)
         except Exception:
             return ["Ingredients data not found"]
 
@@ -159,15 +159,6 @@ class NutrientEngine:
         # 1. Determine Calculation Strategy & Metadata
         unit_type = "Standard"
         std_serving_size = "N/A"
-        
-        # Helper to safely get value from Series or scalar
-        def safe_get(df_loc, col, default):
-            try:
-                val = df_loc[col]
-                if isinstance(val, pd.Series): return val.iloc[0]
-                return val
-            except:
-                return default
 
         try:
             # Lookup in recipes_servingsize
