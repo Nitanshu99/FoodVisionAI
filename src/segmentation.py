@@ -12,7 +12,7 @@ It replaces the 'mock' logic with real Computer Vision geometry.
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from src import config
+import config
 
 class DietaryAssessor:
     """

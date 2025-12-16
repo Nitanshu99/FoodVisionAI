@@ -18,7 +18,7 @@ import keras
 from PIL import Image
 
 # Local imports
-from src import config
+import config
 from src.vision_model import build_model
 from src.nutrient_engine import NutrientEngine
 from src.segmentation import DietaryAssessor

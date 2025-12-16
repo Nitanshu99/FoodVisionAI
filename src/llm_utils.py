@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from llama_cpp import Llama
-from src import config
+import config
 
 class QwenLLM:
     """

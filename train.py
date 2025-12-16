@@ -15,18 +15,19 @@ from keras import callbacks
 from pathlib import Path
 
 # Local imports
-from src import config, augmentation, vision_model
+import config
+from src import augmentation, vision_model
 
 # Auto-configuration for hardware optimization
 try:
-    from auto_config import get_auto_config
+    from config.hardware import get_auto_config
     AUTO_CONFIG = get_auto_config()
-    BATCH_SIZE = AUTO_CONFIG['TRAIN_BATCH_SIZE']
+    BATCH_SIZE = AUTO_CONFIG.get('TRAIN_BATCH_SIZE', config.BATCH_SIZE)
     print(f"\n✅ Using auto-optimized settings:")
     print(f"   Batch Size: {BATCH_SIZE}")
     print(f"   GPU: {AUTO_CONFIG.get('GPU_NAME', 'N/A')}")
-    print(f"   Precision: {AUTO_CONFIG['TRAIN_PRECISION']}")
-except ImportError:
+    print(f"   Precision: {AUTO_CONFIG.get('TRAIN_PRECISION', 'fp32')}")
+except (ImportError, KeyError):
     print("\n⚠️  Auto-config not found, using defaults")
     AUTO_CONFIG = None
     BATCH_SIZE = config.BATCH_SIZE

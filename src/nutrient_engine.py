@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import re
 from typing import Dict, Union, Any, List
-from src import config
+import config
 
 class NutrientEngine:
     """

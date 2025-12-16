@@ -14,7 +14,7 @@ Specifications:
 import tensorflow as tf
 import keras
 from keras import layers, applications, optimizers, losses, metrics
-from src import config
+import config
 
 def build_model(num_classes: int) -> keras.Model:
     """

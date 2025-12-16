@@ -13,3 +13,6 @@ onnxruntime
 langgraph
 langchain-community
 llama-cpp-python
+pytest 
+pytest-cov 
+pytest-mock

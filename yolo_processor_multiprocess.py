@@ -53,7 +53,7 @@ from src.vision_utils import process_crop
 
 # Auto-configuration
 try:
-    from auto_config import get_auto_config
+    from config.hardware import get_auto_config
     AUTO_CONFIG = get_auto_config()
     IMG_SIZE = AUTO_CONFIG['IMG_SIZE']
     CONF_THRESHOLD = AUTO_CONFIG['CONF_THRESHOLD']

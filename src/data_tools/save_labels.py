@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Add project root to python path to import config
 sys.path.append(str(Path(__file__).resolve().parents[2]))
-from src import config
+import config
 
 def main():
     # Use the same directory that your model was trained on
