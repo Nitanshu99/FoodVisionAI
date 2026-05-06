@@ -280,13 +280,13 @@ graph TB
     C1 --> C2[Mass = Volume × Density]
 
     B -->|Piece/Slice/Number| D[Geometric Strategy]
-    D --> D1[Estimate Cylinder<br/>Radius & Height]
+    D --> D1[Estimate Cylinder<br/>Radius and Height]
     D1 --> D2[Volume = π × r² × h]
     D2 --> D3[Mass = Volume × Density]
 
     B -->|Mound/Heap| E[Mound Strategy]
-    E --> E1[Estimate Spherical Cap<br/>Radius & Height]
-    E1 --> E2[Volume = π × h² × (3r - h) / 3]
+    E --> E1[Estimate Spherical Cap<br/>Radius and Height]
+    E1 --> E2[Volume = π × h² × &#40;3r - h&#41; / 3]
     E2 --> E3[Mass = Volume × Density]
 
     C2 --> F[Query INDB Database]
@@ -302,7 +302,7 @@ graph TB
     style D fill:#ffe1f5
     style E fill:#fff5e1
     style F fill:#e1ffe1
-```
+    ```
 
 ### Data Pipeline Workflow
 
