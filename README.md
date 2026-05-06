@@ -302,7 +302,7 @@ graph TB
     style D fill:#ffe1f5
     style E fill:#fff5e1
     style F fill:#e1ffe1
-    ```
+```
 
 ### Data Pipeline Workflow
 
